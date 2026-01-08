@@ -287,6 +287,41 @@ const HealthRecords = () => {
         const updatedRecords = [...records, newRecord];
         setRecords(updatedRecords);
         localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+
+        // Save prescribed medicines to patient reminders
+        if (prescribedMedicines.length > 0) {
+          const remindersStored = localStorage.getItem("patient_reminders") || "[]";
+          const reminders = JSON.parse(remindersStored);
+          const newReminders = prescribedMedicines.map((med) => ({
+            id: med.id,
+            type: "medicine" as const,
+            title: med.medicineName,
+            description: `Dosage: ${med.dosage}. ${med.instructions}`,
+            reminderDate: new Date().toISOString().split("T")[0],
+            reminderTime: med.time,
+            frequency: med.frequency,
+          }));
+          const updatedReminders = [...reminders, ...newReminders];
+          localStorage.setItem("patient_reminders", JSON.stringify(updatedReminders));
+        }
+
+        // Save prescribed tests to patient lab reports
+        if (prescribedTests.length > 0) {
+          const labReportsStored = localStorage.getItem("patient_lab_reports") || "[]";
+          const labReports = JSON.parse(labReportsStored);
+          const newLabReports = prescribedTests.map((test) => ({
+            id: test.id,
+            testName: test.testName,
+            date: new Date().toISOString().split("T")[0],
+            status: "pending" as const,
+            testType: test.testType,
+            frequency: test.frequency,
+            reason: test.reason,
+          }));
+          const updatedLabReports = [...labReports, ...newLabReports];
+          localStorage.setItem("patient_lab_reports", JSON.stringify(updatedLabReports));
+        }
+
         toast.success("Health record created successfully");
       }
 
