@@ -22,9 +22,7 @@ const Navigation = () => {
           {/* Government Style Logo */}
           <div className="flex items-center space-x-2 sm:space-x-4">
             <Link to="/" className="flex items-center space-x-2 sm:space-x-3">
-              <div className="p-1.5 sm:p-2 bg-[var(--folder-gradient)] rounded">
-                <FolderOpen className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
-              </div>
+              <img src="/nav-bar-img.png" alt="MediBridge" className="h-8 w-8 sm:h-10 sm:w-10" />
               <div className="hidden sm:block">
                 <div className="text-lg sm:text-xl font-bold text-govt-blue">
                   MediBridge

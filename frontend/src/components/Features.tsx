@@ -8,36 +8,39 @@ import {
   Share2,
   Smartphone,
   Search,
+  Pill,
+  Sparkles,
+  AlertCircle,
 } from "lucide-react";
 
 const Features = () => {
   const features = [
     {
       icon: FolderOpen,
-      title: "Organize & Store",
+      title: "🗂️ Digital Health Records",
       description:
-        "Automatically organize documents by type, date, and medical category for easy retrieval.",
+        "Securely store and access medical reports, prescriptions, and health documents anytime, anywhere—no more carrying physical files.",
       color: "text-govt-green",
     },
     {
       icon: Shield,
-      title: "Verify Authenticity",
+      title: "🔐 Verify Authenticity",
       description:
-        "Advanced verification using NAMASTE and ICD-11 (TM2) technology ensures your documents are genuine and tamper-proof.",
+        "Advanced verification using ICD-11 (TM2) technology ensures your documents are genuine and tamper-proof.",
       color: "text-govt-blue",
     },
     {
-      icon: Search,
-      title: "Quick Search",
+      icon: AlertCircle,
+      title: "📋 What to Do & What Not to Do",
       description:
-        "Find any document instantly using smart search with filters by date, type, or medical condition.",
+        "Get simple, actionable advice on preventive care and things to avoid, based on your symptoms and health condition.",
       color: "text-govt-green",
     },
     {
-      icon: Download,
-      title: "Quick Access",
+      icon: Sparkles,
+      title: "🌱 Built for the Future",
       description:
-        "Access and download your verified documents 24/7 from anywhere with internet connectivity.",
+        "Designed to integrate with hospitals, labs, and advanced health analytics in future versions.",
       color: "text-govt-blue",
     },
     {
@@ -49,15 +52,29 @@ const Features = () => {
     },
     {
       icon: FileText,
-      title: "ICD-11 (TM2) Classification",
+      title: "🧾 ICD-11 (TM2) Classification",
       description:
         "Documents are automatically classified using WHO's latest International Classification of Diseases.",
+      color: "text-govt-green",
+    },
+    {
+      icon: Pill,
+      title: "💊 Medicine Reminders",
+      description:
+        "Never miss a dose. Set reminders for medicines based on prescriptions and schedules.",
+      color: "text-govt-blue",
+    },
+    {
+      icon: Smartphone,
+      title: "🏥 Checkup & Test Reminders",
+      description:
+        "Get timely reminders for doctor visits, follow-up tests, and disease-based health checkups.",
       color: "text-govt-green",
     },
   ];
 
   return (
-    <section id="documents" className="py-12 sm:py-16 bg-secondary/30">
+    <section id="services" className="py-12 sm:py-16 bg-secondary/30">
       <div className="container mx-auto px-4 sm:px-6">
         <div className="text-center space-y-3 sm:space-y-4 mb-8 sm:mb-12">
           <h2 className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-bold text-foreground">
@@ -95,7 +112,7 @@ const Features = () => {
         </div>
 
         {/* Document Types Section */}
-        <div className="mt-12 sm:mt-16">
+        <div id="documents" className="mt-12 sm:mt-16">
           <div className="text-center mb-6 sm:mb-8">
             <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">
               Supported Document Types
