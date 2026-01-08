@@ -10,8 +10,19 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +50,9 @@ import {
   LogOut,
   Edit,
   Trash2,
+  Plus,
+  Pill,
+  Microscope,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -68,6 +82,30 @@ interface HealthRecord {
   updated_at: string;
 }
 
+interface PrescribedMedicine {
+  id: number;
+  medicineName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+  instructions: string;
+  startDate: string;
+  patientId?: string;
+  createdAt: string;
+}
+
+interface PrescribedTest {
+  id: number;
+  testName: string;
+  testType: string;
+  frequency: string;
+  reason: string;
+  instructions: string;
+  prescribedDate: string;
+  patientId?: string;
+  createdAt: string;
+}
+
 const Dashboard = () => {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentRecords, setRecentRecords] = useState<HealthRecord[]>([]);
@@ -75,10 +113,31 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [prescribedMedicines, setPrescribedMedicines] = useState<PrescribedMedicine[]>([]);
+  const [prescribedTests, setPrescribedTests] = useState<PrescribedTest[]>([]);
+  const [isMedicineDialogOpen, setIsMedicineDialogOpen] = useState(false);
+  const [isTestDialogOpen, setIsTestDialogOpen] = useState(false);
+  const [medicineForm, setMedicineForm] = useState({
+    medicineName: "",
+    dosage: "",
+    frequency: "daily",
+    duration: "",
+    instructions: "",
+    startDate: "",
+  });
+  const [testForm, setTestForm] = useState({
+    testName: "",
+    testType: "blood_test",
+    frequency: "once",
+    reason: "",
+    instructions: "",
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboardData();
+    loadPrescribedMedicines();
+    loadPrescribedTests();
 
     // Get user email from localStorage if available
     const userData = localStorage.getItem("user_data");
@@ -95,6 +154,10 @@ const Dashboard = () => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === "health_records") {
         fetchDashboardData();
+      } else if (e.key === "prescribed_medicines") {
+        loadPrescribedMedicines();
+      } else if (e.key === "prescribed_tests") {
+        loadPrescribedTests();
       }
     };
 
@@ -193,6 +256,147 @@ const Dashboard = () => {
       setAllRecords([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPrescribedMedicines = () => {
+    try {
+      const stored = localStorage.getItem("prescribed_medicines");
+      if (stored) {
+        setPrescribedMedicines(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error("Failed to load prescribed medicines:", error);
+    }
+  };
+
+  const loadPrescribedTests = () => {
+    try {
+      const stored = localStorage.getItem("prescribed_tests");
+      if (stored) {
+        setPrescribedTests(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error("Failed to load prescribed tests:", error);
+    }
+  };
+
+  const handleAddMedicine = () => {
+    if (!medicineForm.medicineName || !medicineForm.dosage || !medicineForm.startDate) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+
+    try {
+      const newMedicine: PrescribedMedicine = {
+        id: Date.now(),
+        ...medicineForm,
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...prescribedMedicines, newMedicine];
+      setPrescribedMedicines(updated);
+      localStorage.setItem("prescribed_medicines", JSON.stringify(updated));
+
+      // Also add to patient reminders
+      const remindersStored = localStorage.getItem("patient_reminders") || "[]";
+      const reminders = JSON.parse(remindersStored);
+      const patientReminder = {
+        id: Date.now(),
+        type: "medicine" as const,
+        title: medicineForm.medicineName,
+        description: `Dosage: ${medicineForm.dosage}. ${medicineForm.instructions}`,
+        reminderDate: medicineForm.startDate,
+        reminderTime: "08:00",
+        frequency: medicineForm.frequency,
+      };
+      reminders.push(patientReminder);
+      localStorage.setItem("patient_reminders", JSON.stringify(reminders));
+
+      toast.success("Medicine prescribed successfully and added to patient's reminders");
+      setMedicineForm({
+        medicineName: "",
+        dosage: "",
+        frequency: "daily",
+        duration: "",
+        instructions: "",
+        startDate: "",
+      });
+      setIsMedicineDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to prescribe medicine:", error);
+      toast.error("Failed to prescribe medicine");
+    }
+  };
+
+  const handleAddTest = () => {
+    if (!testForm.testName || !testForm.testType) {
+      toast.error("Please fill all required fields");
+      return;
+    }
+
+    try {
+      const newTest: PrescribedTest = {
+        id: Date.now(),
+        ...testForm,
+        prescribedDate: new Date().toISOString().split("T")[0],
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = [...prescribedTests, newTest];
+      setPrescribedTests(updated);
+      localStorage.setItem("prescribed_tests", JSON.stringify(updated));
+
+      // Also add to patient lab reports
+      const labReportsStored = localStorage.getItem("patient_lab_reports") || "[]";
+      const labReports = JSON.parse(labReportsStored);
+      const patientLabReport = {
+        id: Date.now(),
+        testName: testForm.testName,
+        date: new Date().toISOString().split("T")[0],
+        status: "pending" as const,
+        testType: testForm.testType,
+        frequency: testForm.frequency,
+      };
+      labReports.push(patientLabReport);
+      localStorage.setItem("patient_lab_reports", JSON.stringify(labReports));
+
+      toast.success("Test prescribed successfully and added to patient's reports");
+      setTestForm({
+        testName: "",
+        testType: "blood_test",
+        frequency: "once",
+        reason: "",
+        instructions: "",
+      });
+      setIsTestDialogOpen(false);
+    } catch (error) {
+      console.error("Failed to prescribe test:", error);
+      toast.error("Failed to prescribe test");
+    }
+  };
+
+  const handleDeleteMedicine = (id: number) => {
+    try {
+      const updated = prescribedMedicines.filter((m) => m.id !== id);
+      setPrescribedMedicines(updated);
+      localStorage.setItem("prescribed_medicines", JSON.stringify(updated));
+      toast.success("Medicine removed successfully");
+    } catch (error) {
+      console.error("Failed to delete medicine:", error);
+      toast.error("Failed to delete medicine");
+    }
+  };
+
+  const handleDeleteTest = (id: number) => {
+    try {
+      const updated = prescribedTests.filter((t) => t.id !== id);
+      setPrescribedTests(updated);
+      localStorage.setItem("prescribed_tests", JSON.stringify(updated));
+      toast.success("Test removed successfully");
+    } catch (error) {
+      console.error("Failed to delete test:", error);
+      toast.error("Failed to delete test");
     }
   };
 
@@ -480,9 +684,11 @@ const Dashboard = () => {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Patient Overview</TabsTrigger>
           <TabsTrigger value="records">Consultations</TabsTrigger>
+          <TabsTrigger value="medicines">💊 Medicines</TabsTrigger>
+          <TabsTrigger value="tests">🔬 Tests</TabsTrigger>
           <TabsTrigger value="analytics">Clinical Analytics</TabsTrigger>
           <TabsTrigger value="verification">Verification Status</TabsTrigger>
         </TabsList>
@@ -903,6 +1109,384 @@ const Dashboard = () => {
                     <FileText className="h-4 w-4" />
                     Add Your First Record
                   </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="medicines">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                <div>
+                  <CardTitle>💊 Prescribe Medicine</CardTitle>
+                  <CardDescription>
+                    Prescribe medicines to your patients
+                  </CardDescription>
+                </div>
+                <Dialog open={isMedicineDialogOpen} onOpenChange={setIsMedicineDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-govt-green hover:bg-govt-green/90">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Prescribe Medicine
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Prescribe Medicine</DialogTitle>
+                      <DialogDescription>
+                        Add a medicine prescription for the patient
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="med-name">Medicine Name *</Label>
+                        <Input
+                          id="med-name"
+                          placeholder="e.g., Aspirin"
+                          value={medicineForm.medicineName}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              medicineName: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dosage">Dosage *</Label>
+                        <Input
+                          id="dosage"
+                          placeholder="e.g., 500mg"
+                          value={medicineForm.dosage}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              dosage: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="med-frequency">Frequency *</Label>
+                        <select
+                          id="med-frequency"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={medicineForm.frequency}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              frequency: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="daily">Daily</option>
+                          <option value="twice_daily">Twice Daily</option>
+                          <option value="thrice_daily">Thrice Daily</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="duration">Duration</Label>
+                        <Input
+                          id="duration"
+                          placeholder="e.g., 7 days, 1 month"
+                          value={medicineForm.duration}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              duration: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="med-instructions">Instructions</Label>
+                        <Textarea
+                          id="med-instructions"
+                          placeholder="e.g., Take after breakfast with water"
+                          value={medicineForm.instructions}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              instructions: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="start-date">Start Date *</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={medicineForm.startDate}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              startDate: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <Button onClick={handleAddMedicine} className="w-full">
+                        Prescribe Medicine
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {prescribedMedicines.length > 0 ? (
+                <div className="space-y-4">
+                  {prescribedMedicines.map((medicine) => (
+                    <div
+                      key={medicine.id}
+                      className="p-4 border rounded-lg bg-gradient-to-r from-green-50 to-transparent hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Pill className="h-5 w-5 text-govt-green" />
+                            <h4 className="font-semibold text-lg">
+                              {medicine.medicineName}
+                            </h4>
+                          </div>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <p>
+                              <span className="font-medium">Dosage:</span>{" "}
+                              {medicine.dosage}
+                            </p>
+                            <p>
+                              <span className="font-medium">Frequency:</span>{" "}
+                              {medicine.frequency}
+                            </p>
+                            {medicine.duration && (
+                              <p>
+                                <span className="font-medium">Duration:</span>{" "}
+                                {medicine.duration}
+                              </p>
+                            )}
+                            <p>
+                              <span className="font-medium">Start Date:</span>{" "}
+                              {new Date(medicine.startDate).toLocaleDateString()}
+                            </p>
+                            {medicine.instructions && (
+                              <p className="mt-2 text-gray-700">
+                                <span className="font-medium">Instructions:</span>{" "}
+                                {medicine.instructions}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteMedicine(medicine.id)}
+                          className="text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Pill className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">
+                    No medicines prescribed yet. Start by prescribing a medicine above.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="tests">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                <div>
+                  <CardTitle>🔬 Prescribe Tests</CardTitle>
+                  <CardDescription>
+                    Prescribe lab tests and medical tests to your patients
+                  </CardDescription>
+                </div>
+                <Dialog open={isTestDialogOpen} onOpenChange={setIsTestDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-govt-blue hover:bg-govt-blue/90">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Prescribe Test
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Prescribe Test</DialogTitle>
+                      <DialogDescription>
+                        Add a test prescription for the patient
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="test-name">Test Name *</Label>
+                        <Input
+                          id="test-name"
+                          placeholder="e.g., Blood Test, X-Ray"
+                          value={testForm.testName}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              testName: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="test-type">Test Type *</Label>
+                        <select
+                          id="test-type"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={testForm.testType}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              testType: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="blood_test">Blood Test</option>
+                          <option value="urine_test">Urine Test</option>
+                          <option value="xray">X-Ray</option>
+                          <option value="ultrasound">Ultrasound</option>
+                          <option value="ct_scan">CT Scan</option>
+                          <option value="mri">MRI</option>
+                          <option value="ecg">ECG</option>
+                          <option value="glucose_test">Glucose Test</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="test-frequency">How Often? *</Label>
+                        <select
+                          id="test-frequency"
+                          className="w-full px-3 py-2 border border-input rounded-md"
+                          value={testForm.frequency}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              frequency: e.target.value,
+                            })
+                          }
+                        >
+                          <option value="once">Once (One time only)</option>
+                          <option value="weekly">Weekly</option>
+                          <option value="monthly">Monthly</option>
+                          <option value="quarterly">Every 3 Months</option>
+                          <option value="half_yearly">Every 6 Months</option>
+                          <option value="yearly">Yearly</option>
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="test-reason">Reason for Test</Label>
+                        <Textarea
+                          id="test-reason"
+                          placeholder="e.g., Follow-up for diabetes screening"
+                          value={testForm.reason}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              reason: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="test-instructions">
+                          Special Instructions
+                        </Label>
+                        <Textarea
+                          id="test-instructions"
+                          placeholder="e.g., Fasting required, Avoid medicines before test"
+                          value={testForm.instructions}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              instructions: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <Button onClick={handleAddTest} className="w-full">
+                        Prescribe Test
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {prescribedTests.length > 0 ? (
+                <div className="space-y-4">
+                  {prescribedTests.map((test) => (
+                    <div
+                      key={test.id}
+                      className="p-4 border rounded-lg bg-gradient-to-r from-blue-50 to-transparent hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Microscope className="h-5 w-5 text-govt-blue" />
+                            <h4 className="font-semibold text-lg">
+                              {test.testName}
+                            </h4>
+                            <Badge variant="secondary" className="text-xs">
+                              {test.testType}
+                            </Badge>
+                          </div>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <p>
+                              <span className="font-medium">Frequency:</span>{" "}
+                              {test.frequency}
+                            </p>
+                            <p>
+                              <span className="font-medium">Prescribed:</span>{" "}
+                              {new Date(test.prescribedDate).toLocaleDateString()}
+                            </p>
+                            {test.reason && (
+                              <p>
+                                <span className="font-medium">Reason:</span>{" "}
+                                {test.reason}
+                              </p>
+                            )}
+                            {test.instructions && (
+                              <p className="mt-2 text-gray-700">
+                                <span className="font-medium">Instructions:</span>{" "}
+                                {test.instructions}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDeleteTest(test.id)}
+                          className="text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Microscope className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-600">
+                    No tests prescribed yet. Start by prescribing a test above.
+                  </p>
                 </div>
               )}
             </CardContent>
