@@ -571,12 +571,11 @@ const Dashboard = () => {
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
           <Button
-            className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm bg-gradient-to-r from-govt-blue to-govt-green hover:from-govt-blue/90 hover:to-govt-green/90"
+            className="flex items-center justify-center gap-2 w-full sm:w-auto text-base font-semibold py-6 sm:py-2 bg-gradient-to-r from-govt-blue to-govt-green hover:from-govt-blue/90 hover:to-govt-green/90 text-white shadow-lg hover:shadow-xl transition-all"
             onClick={() => navigate("/health-records")}
           >
-            <FileText className="h-4 w-4" />
-            <span className="hidden sm:inline">+ New Health Record</span>
-            <span className="sm:hidden">+ New Record</span>
+            <FileText className="h-5 w-5" />
+            <span>+ New Health Record</span>
           </Button>
           <Button
             className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm"
