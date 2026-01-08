@@ -130,6 +130,7 @@ const HealthRecords = () => {
   // Medicine and Test Prescription States
   const [prescribedMedicines, setPrescribedMedicines] = useState<any[]>([]);
   const [prescribedTests, setPrescribedTests] = useState<any[]>([]);
+  const [nextCheckupDays, setNextCheckupDays] = useState<string>("");
   const [medicineForm, setMedicineForm] = useState({
     medicineName: "",
     dosage: "",
@@ -322,6 +323,29 @@ const HealthRecords = () => {
           localStorage.setItem("patient_lab_reports", JSON.stringify(updatedLabReports));
         }
 
+        // Save checkup reminder if days specified
+        if (nextCheckupDays && parseInt(nextCheckupDays) > 0) {
+          const remindersStored = localStorage.getItem("patient_reminders") || "[]";
+          const reminders = JSON.parse(remindersStored);
+          
+          // Calculate checkup date
+          const checkupDate = new Date();
+          checkupDate.setDate(checkupDate.getDate() + parseInt(nextCheckupDays));
+          
+          const checkupReminder = {
+            id: Date.now(),
+            type: "checkup" as const,
+            title: `Follow-up Checkup (${formData.doctorName ? `Dr. ${formData.doctorName}` : "Doctor"})`,
+            description: `Follow-up visit required. Original visit date: ${formData.visitDate || new Date().toISOString().split("T")[0]}`,
+            reminderDate: checkupDate.toISOString().split("T")[0],
+            reminderTime: "10:00",
+            frequency: "once" as const,
+          };
+          
+          const updatedReminders = [...reminders, checkupReminder];
+          localStorage.setItem("patient_reminders", JSON.stringify(updatedReminders));
+        }
+
         toast.success("Health record created successfully");
       }
 
@@ -472,6 +496,7 @@ const HealthRecords = () => {
     });
     setPrescribedMedicines([]);
     setPrescribedTests([]);
+    setNextCheckupDays("");
   };
 
   const handleAddMedicine = () => {
@@ -976,6 +1001,24 @@ const HealthRecords = () => {
                     }
                     className="h-10 sm:h-11"
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="nextCheckup" className="text-sm font-medium">
+                    📅 Days Until Next Checkup
+                  </Label>
+                  <Input
+                    id="nextCheckup"
+                    type="number"
+                    value={nextCheckupDays}
+                    onChange={(e) => setNextCheckupDays(e.target.value)}
+                    placeholder="e.g., 7 (for checkup in 7 days)"
+                    className="h-10 sm:h-11"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Enter the number of days until the patient should return for checkup. A reminder will be automatically created.
+                  </p>
                 </div>
 
                 {/* Medicine Prescription Section */}
