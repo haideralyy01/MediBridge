@@ -81,6 +81,7 @@ interface HealthRecord {
   verification_status: string;
   created_at: string;
   updated_at: string;
+  patient_id?: string;
 }
 
 interface NewRecordForm {
@@ -96,6 +97,7 @@ interface NewRecordForm {
   visitDate: string;
   severity: string;
   namasteName: string;
+  patientId: string;
 }
 
 const HealthRecords = () => {
@@ -119,6 +121,7 @@ const HealthRecords = () => {
     hospitalName: "",
     visitDate: "",
     severity: "mild",
+    patientId: "",
   });
 
   useEffect(() => {
@@ -253,6 +256,7 @@ const HealthRecords = () => {
           hospital_name: formData.hospitalName,
           visit_date: formData.visitDate,
           severity: formData.severity,
+          patient_id: formData.patientId,
           verification_status: "pending",
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -280,6 +284,7 @@ const HealthRecords = () => {
         hospitalName: "",
         visitDate: "",
         severity: "mild",
+        patientId: "",
       });
     } catch (error) {
       console.error("Failed to save health record:", error);
@@ -380,6 +385,7 @@ const HealthRecords = () => {
       hospitalName: record.hospital_name || "",
       visitDate: record.visit_date || "",
       severity: record.severity,
+      patientId: record.patient_id || "",
     });
 
     // Store the record ID for editing
@@ -405,6 +411,7 @@ const HealthRecords = () => {
       hospitalName: "",
       visitDate: "",
       severity: "mild",
+      patientId: "",
     });
   };
 
@@ -700,6 +707,22 @@ const HealthRecords = () => {
                   />
                 </div>
 
+                <div>
+                  <Label htmlFor="patientId" className="text-sm font-medium">
+                    Patient ID *
+                  </Label>
+                  <Input
+                    id="patientId"
+                    value={formData.patientId}
+                    onChange={(e) =>
+                      setFormData({ ...formData, patientId: e.target.value })
+                    }
+                    placeholder="Enter patient's ID"
+                    className="h-10 sm:h-11"
+                    required
+                  />
+                </div>
+
                 {/* Description field removed as requested */}
 
                 {/* Disease Section */}
@@ -712,32 +735,11 @@ const HealthRecords = () => {
                           icd11Code: disease.code,
                           icd11Title: disease.title,
                           diagnosis: disease.title,
-                          namasteName: disease.namaste || "",
                           symptoms: disease.symptoms || formData.symptoms,
                         });
                       }}
                       label="Disease/Condition"
                       placeholder="Type disease name or symptoms..."
-                    />
-                  </div>
-                  <div>
-                    <Label
-                      htmlFor="namasteName"
-                      className="text-sm font-medium"
-                    >
-                      Namaste Name
-                    </Label>
-                    <Input
-                      id="namasteName"
-                      value={formData.namasteName}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          namasteName: e.target.value,
-                        })
-                      }
-                      placeholder="Namaste name (e.g., chaechak, Madhumeha)"
-                      className="h-10 sm:h-11"
                     />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

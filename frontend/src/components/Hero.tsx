@@ -28,16 +28,16 @@ const Hero = () => {
               </div>
 
               <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-foreground leading-tight">
-                Bridging
+                Your health records.
                 <span className="text-govt-blue block sm:inline">
                   {" "}
-                  Ayush & Modern Medicine
+                  Your guidance. One bridge.
                 </span>
               </h1>
 
               <p className="text-base sm:text-lg text-muted-foreground leading-relaxed max-w-xl">
-                Connecting AYUSH systems with ICD-11 through NAMASTE for
-                comprehensive, globally recognized patient care.
+                MediBridge helps you store medical records digitally, understand symptoms,
+                and manage medicines and checkups—all in one secure platform.
               </p>
             </div>
 

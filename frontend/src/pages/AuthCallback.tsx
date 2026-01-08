@@ -53,23 +53,37 @@ const AuthCallback = () => {
             // Determine if this was a signup or login based on state
             const isSignup = state.includes("_signup");
 
+            // Get role and patient ID from sessionStorage
+            const loginRole = sessionStorage.getItem("login_role") || "doctor";
+            const patientId = sessionStorage.getItem("patient_id");
+
             // Store dummy user data for now (replace with actual user data from backend)
             const userData = {
               email: "user@example.com", // This would come from the backend
               name: "John Doe",
+              role: loginRole,
               loginTime: new Date().toISOString(),
             };
             localStorage.setItem("user_data", JSON.stringify(userData));
             localStorage.setItem("auth_token", "dummy_token_" + Date.now());
+
+            // Store patient ID if patient is logging in
+            if (loginRole === "patient" && patientId) {
+              localStorage.setItem("patient_id", patientId);
+            }
 
             setStatus("success");
             setMessage(
               isSignup ? "Account created successfully!" : "Login successful!"
             );
 
-            // Redirect to dashboard after a short delay
+            // Redirect to appropriate dashboard after a short delay
             setTimeout(() => {
-              navigate("/dashboard");
+              if (loginRole === "patient") {
+                navigate("/patient-dashboard");
+              } else {
+                navigate("/dashboard");
+              }
             }, 2000);
           }, 1500);
 

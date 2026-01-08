@@ -353,19 +353,27 @@ const Dashboard = () => {
           <Logo size="md" showText={true} to="/" />
           <div className="space-y-1 sm:space-y-2">
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-              Health Dashboard
+              👨‍⚕️ Doctor Dashboard
             </h1>
             <p className="text-sm sm:text-base text-gray-600">
-              Comprehensive view of your health records and data
+              Manage patient health records and consultations
             </p>
             {userEmail && (
               <p className="text-xs sm:text-sm text-gray-500">
-                Welcome back, {userEmail}
+                Welcome back, Dr. {userEmail.split("@")[0]}
               </p>
             )}
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
+          <Button
+            className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm bg-gradient-to-r from-govt-blue to-govt-green hover:from-govt-blue/90 hover:to-govt-green/90"
+            onClick={() => navigate("/health-records")}
+          >
+            <FileText className="h-4 w-4" />
+            <span className="hidden sm:inline">+ New Health Record</span>
+            <span className="sm:hidden">+ New Record</span>
+          </Button>
           <Button
             className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm"
             onClick={handleExportToExcel}
@@ -387,10 +395,10 @@ const Dashboard = () => {
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
-        <Card>
+        <Card className="border-l-4 border-l-govt-blue">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Records</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Patient Records</CardTitle>
+            <Users className="h-4 w-4 text-govt-blue" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalRecords || 0}</div>
@@ -400,66 +408,66 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-govt-green">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Verified Records
             </CardTitle>
-            <CheckCircle className="h-4 w-4 text-muted-foreground" />
+            <CheckCircle className="h-4 w-4 text-govt-green" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {stats?.verifiedRecords || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              {getVerificationRate()}% verification rate
+              {getVerificationRate()}% verified
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-govt-orange">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Active Conditions
+              Diagnoses
             </CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
+            <Heart className="h-4 w-4 text-govt-orange" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {stats?.activeConditions || 0}
             </div>
-            <p className="text-xs text-muted-foreground">Being monitored</p>
+            <p className="text-xs text-muted-foreground">Unique conditions</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-red-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Active Medications
+              Prescriptions
             </CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <Activity className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {stats?.activeMedications || 0}
             </div>
             <p className="text-xs text-muted-foreground">
-              Current prescriptions
+              Active medications
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-purple-500">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Health Score</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Verification</CardTitle>
+            <TrendingUp className="h-4 w-4 text-purple-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">85%</div>
+            <div className="text-2xl font-bold">{getVerificationRate()}%</div>
             <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
               <div
-                className="bg-green-600 h-2 rounded-full"
-                style={{ width: "85%" }}
+                className="bg-purple-600 h-2 rounded-full"
+                style={{ width: `${getVerificationRate()}%` }}
               ></div>
             </div>
           </CardContent>
@@ -473,20 +481,20 @@ const Dashboard = () => {
         className="space-y-6"
       >
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="records">Recent Records</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="verification">Verification</TabsTrigger>
+          <TabsTrigger value="overview">Patient Overview</TabsTrigger>
+          <TabsTrigger value="records">Consultations</TabsTrigger>
+          <TabsTrigger value="analytics">Clinical Analytics</TabsTrigger>
+          <TabsTrigger value="verification">Verification Status</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Recent Records */}
+            {/* Recent Consultations */}
             <Card>
               <CardHeader>
-                <CardTitle>Recent Health Records</CardTitle>
+                <CardTitle>Recent Consultations</CardTitle>
                 <CardDescription>
-                  Your latest health record entries
+                  Latest patient consultation records
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -494,18 +502,25 @@ const Dashboard = () => {
                   {recentRecords.map((record) => (
                     <div
                       key={record.id}
-                      className="flex items-center justify-between p-3 border rounded-lg hover:shadow-md transition-shadow"
+                      className="flex items-start justify-between p-4 border rounded-lg hover:shadow-md transition-shadow bg-gradient-to-r from-blue-50 to-transparent"
                     >
                       <div className="flex-1">
-                        <h4 className="font-medium">{record.title}</h4>
-                        <p className="text-sm text-gray-600 capitalize">
-                          {record.record_type}
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-gray-900">{record.title}</h4>
+                          {record.icd11_code && (
+                            <Badge variant="secondary" className="text-xs">
+                              {record.icd11_code}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 capitalize mt-1">
+                          Type: {record.record_type}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-500 mt-1">
                           {new Date(record.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         <div className="flex flex-col gap-1">
                           <Badge className={getSeverityColor(record.severity)}>
                             {record.severity}
@@ -526,6 +541,7 @@ const Dashboard = () => {
                             variant="outline"
                             onClick={() => handleEditRecord(record.id)}
                             className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            title="Edit consultation"
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -536,6 +552,7 @@ const Dashboard = () => {
                                 size="sm"
                                 variant="outline"
                                 className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete consultation"
                               >
                                 <Trash2 className="h-3 w-3" />
                               </Button>

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { FolderOpen } from "lucide-react";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
@@ -26,11 +27,9 @@ const Logo = ({
   };
 
   const LogoIcon = () => (
-    <img
-      src="/1757848899458.png"
-      alt="MediBridge Logo"
-      className={`${sizeClasses[size]} object-contain`}
-    />
+    <div className={`${sizeClasses[size]} bg-[var(--folder-gradient)] rounded flex items-center justify-center`}>
+      <FolderOpen className={`${sizeClasses[size]} text-white`} />
+    </div>
   );
 
   const LogoContent = () => (

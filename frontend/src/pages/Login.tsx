@@ -7,12 +7,34 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import Logo from "@/components/Logo";
-import { FolderOpen, Shield, Mail } from "lucide-react";
+import { Shield, Stethoscope, Users, LogIn, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useState } from "react";
+import { toast } from "sonner";
 
 const Login = () => {
+  const [selectedRole, setSelectedRole] = useState<"doctor" | "patient" | null>(null);
+  const [authMode, setAuthMode] = useState<"signin" | "register" | null>(null);
+  const [patientId, setPatientId] = useState("");
+
   const handleGoogleLogin = () => {
+    // For patient login, require patient ID
+    if (selectedRole === "patient" && !patientId.trim()) {
+      toast.error("Please enter your Patient ID");
+      return;
+    }
+
+    // Store patient ID in sessionStorage for use in auth callback
+    if (selectedRole === "patient") {
+      sessionStorage.setItem("patient_id", patientId);
+      sessionStorage.setItem("login_role", "patient");
+    } else {
+      sessionStorage.setItem("login_role", "doctor");
+    }
+
     // Google OAuth integration with your actual client ID
     const clientId =
       import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -51,6 +73,20 @@ const Login = () => {
   };
 
   const handleGoogleSignup = () => {
+    // For patient signup, require patient ID
+    if (selectedRole === "patient" && !patientId.trim()) {
+      toast.error("Please enter your Patient ID");
+      return;
+    }
+
+    // Store patient ID in sessionStorage for use in auth callback
+    if (selectedRole === "patient") {
+      sessionStorage.setItem("patient_id", patientId);
+      sessionStorage.setItem("login_role", "patient");
+    } else {
+      sessionStorage.setItem("login_role", "doctor");
+    }
+
     // Same OAuth flow for signup - you can differentiate on the backend
     const clientId =
       import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -84,120 +120,203 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-secondary/30 via-background to-secondary/20 flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-1000">
-      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg space-y-6 sm:space-y-8 animate-in slide-in-from-bottom-8 duration-700 delay-200">
-        {/* Header */}
-        <div className="text-center space-y-3 sm:space-y-4 animate-in slide-in-from-top-4 duration-600 delay-300">
-          <div className="flex justify-center animate-in slide-in-from-right-4 duration-600 delay-500">
-            <Logo size="lg" showText={true} to="/" />
+    <div className="min-h-screen bg-gradient-to-br from-secondary/30 via-background to-secondary/20 flex items-center justify-center p-4 sm:p-6 lg:p-8 animate-in fade-in duration-1000 overflow-hidden">
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-govt-blue/10 rounded-full blur-3xl animate-pulse"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-govt-green/10 rounded-full blur-3xl animate-pulse delay-1000"></div>
+      </div>
+
+      <div className="w-full max-w-sm sm:max-w-md lg:max-w-lg space-y-6 sm:space-y-8 animate-in slide-in-from-bottom-8 duration-700 delay-200 relative z-10">
+        {/* Header with Enhanced Logo */}
+        <div className="text-center space-y-4 sm:space-y-6 animate-in slide-in-from-top-4 duration-600 delay-300">
+          <div className="flex justify-center">
+            <div className="relative animate-in zoom-in duration-500 delay-400">
+              <div className="absolute inset-0 bg-gradient-to-r from-govt-blue to-govt-green rounded-2xl blur-2xl opacity-20 animate-pulse"></div>
+              <Logo size="lg" showText={true} to="/" />
+            </div>
+          </div>
+          <div className="space-y-2 animate-in fade-in duration-500 delay-600">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-govt-blue to-govt-green bg-clip-text text-transparent">
+              Welcome to MediBridge
+            </h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Choose your role to continue</p>
           </div>
         </div>
 
         {/* Main Card */}
-        <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-xl animate-in slide-in-from-bottom-6 duration-800 delay-600 hover:shadow-2xl transition-shadow duration-300 mx-auto">
-          <CardHeader className="text-center space-y-2 pb-3 sm:pb-4 px-4 sm:px-6 animate-in fade-in duration-600 delay-800">
-            <CardTitle className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground animate-in slide-in-from-top-2 duration-500 delay-900">
-              Welcome Back
+        <Card className="bg-card/50 backdrop-blur-sm border-border/50 shadow-xl animate-in slide-in-from-bottom-6 duration-800 delay-600 hover:shadow-2xl transition-all duration-300 mx-auto overflow-hidden">
+          {/* Card Header */}
+          <CardHeader className="text-center space-y-2 pb-4 sm:pb-6 px-4 sm:px-6 bg-gradient-to-b from-govt-blue/5 to-transparent border-b border-border/20 animate-in fade-in duration-600 delay-800">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-foreground animate-in slide-in-from-top-2 duration-500 delay-900">
+              Choose Your Account Type
             </CardTitle>
-            <CardDescription className="text-sm sm:text-base text-muted-foreground animate-in slide-in-from-top-2 duration-500 delay-1000">
-              Access your secure health vault with Google
+            <CardDescription className="text-xs sm:text-sm text-muted-foreground animate-in slide-in-from-top-2 duration-500 delay-1000">
+              Select whether you're a healthcare professional or a patient
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-3 sm:space-y-4 pb-4 sm:pb-6 px-4 sm:px-6 animate-in fade-in duration-600 delay-1100">
-            {/* Google Login Button */}
-            <Button
-              onClick={handleGoogleLogin}
-              variant="outline"
-              size="lg"
-              className="w-full h-10 sm:h-12 bg-white hover:bg-gray-50 border-2 hover:text-black border-gray-200 text-gray-700 font-medium shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 animate-in slide-in-from-left-4 delay-1200 text-sm sm:text-base"
-            >
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-              Continue with Google
-            </Button>
+          {/* Card Content */}
+          <CardContent className="space-y-3 sm:space-y-4 pt-6 sm:pt-8 pb-6 sm:pb-8 px-4 sm:px-6 animate-in fade-in duration-600 delay-1100">
+            
+            {!selectedRole ? (
+              // Step 1: Choose Doctor or Patient
+              <>
+                <p className="text-center text-sm font-medium text-foreground mb-4 animate-in fade-in duration-500 delay-1150">
+                  What is your role?
+                </p>
+                
+                {/* Doctor Role Button */}
+                <Button
+                  onClick={() => setSelectedRole("doctor")}
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-blue/5 to-transparent hover:from-govt-blue/10 hover:to-govt-blue/5 border-2 border-govt-blue/30 hover:border-govt-blue/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-blue/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-left-4 delay-1200 group"
+                >
+                  <div className="flex items-center justify-between w-full px-2">
+                    <Stethoscope className="w-6 h-6 sm:w-7 sm:h-7 text-govt-blue group-hover:animate-bounce" />
+                    <div className="flex-1 text-left ml-4">
+                      <p className="font-bold text-sm sm:text-base">👨‍⚕️ Doctor</p>
+                      <p className="text-xs text-muted-foreground">Healthcare Professional</p>
+                    </div>
+                    <div className="text-govt-blue/50 group-hover:text-govt-blue transition-colors">→</div>
+                  </div>
+                </Button>
 
-            <div className="relative py-2 sm:py-3 animate-in fade-in duration-500 delay-1300">
-              <div className="absolute inset-0 flex items-center">
-                <Separator className="w-full animate-in slide-in-from-left duration-600 delay-1400" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 sm:px-3 py-1 text-muted-foreground font-medium rounded-md border border-border/20 animate-in zoom-in duration-400 delay-1500 hover:scale-105 transition-transform text-xs sm:text-xs">
-                  New to MediBridge?
-                </span>
-              </div>
+                {/* Patient Role Button */}
+                <Button
+                  onClick={() => setSelectedRole("patient")}
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-green/5 to-transparent hover:from-govt-green/10 hover:to-govt-green/5 border-2 border-govt-green/30 hover:border-govt-green/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-right-4 delay-1300 group"
+                >
+                  <div className="flex items-center justify-between w-full px-2">
+                    <Users className="w-6 h-6 sm:w-7 sm:h-7 text-govt-green group-hover:animate-bounce" />
+                    <div className="flex-1 text-left ml-4">
+                      <p className="font-bold text-sm sm:text-base">👤 Patient</p>
+                      <p className="text-xs text-muted-foreground">Access Health Records</p>
+                    </div>
+                    <div className="text-govt-green/50 group-hover:text-govt-green transition-colors">→</div>
+                  </div>
+                </Button>
+              </>
+            ) : (
+              // Step 2: Choose Sign In or Register
+              <>
+                <div className="flex items-center justify-between mb-4 p-3 bg-secondary/50 rounded-lg animate-in fade-in duration-500 delay-1200">
+                  <p className="text-sm font-medium">
+                    {selectedRole === "doctor" ? "👨‍⚕️ Doctor" : "👤 Patient"} - Choose Action
+                  </p>
+                  <Button
+                    onClick={() => {
+                      setSelectedRole(null);
+                      setAuthMode(null);
+                      setPatientId("");
+                    }}
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs hover:bg-secondary"
+                  >
+                    ← Back
+                  </Button>
+                </div>
+
+                {/* Patient ID Input - Only show for patients */}
+                {selectedRole === "patient" && (
+                  <div className="mb-4 p-4 bg-govt-green/5 border border-govt-green/30 rounded-lg animate-in fade-in duration-500">
+                    <Label htmlFor="patient-id" className="text-sm font-medium mb-2 block">
+                      👤 Patient ID
+                    </Label>
+                    <Input
+                      id="patient-id"
+                      type="text"
+                      placeholder="Enter your Patient ID"
+                      value={patientId}
+                      onChange={(e) => setPatientId(e.target.value)}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Your unique Patient ID is required to access your health records
+                    </p>
+                  </div>
+                )}
+
+                {/* Sign In Button */}
+                <Button
+                  onClick={() => {
+                    setAuthMode("signin");
+                    handleGoogleLogin();
+                  }}
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-blue/5 to-transparent hover:from-govt-blue/10 hover:to-govt-blue/5 border-2 border-govt-blue/30 hover:border-govt-blue/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-blue/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-left-4 delay-1250 group"
+                >
+                  <div className="flex items-center justify-between w-full px-2">
+                    <LogIn className="w-6 h-6 sm:w-7 sm:h-7 text-govt-blue group-hover:animate-bounce" />
+                    <div className="flex-1 text-left ml-4">
+                      <p className="font-bold text-sm sm:text-base">🔑 Sign In</p>
+                      <p className="text-xs text-muted-foreground">Access your existing account</p>
+                    </div>
+                    <div className="text-govt-blue/50 group-hover:text-govt-blue transition-colors">→</div>
+                  </div>
+                </Button>
+
+                {/* Register Button */}
+                <Button
+                  onClick={() => {
+                    setAuthMode("register");
+                    handleGoogleSignup();
+                  }}
+                  variant="outline"
+                  size="lg"
+                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-green/5 to-transparent hover:from-govt-green/10 hover:to-govt-green/5 border-2 border-govt-green/30 hover:border-govt-green/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-right-4 delay-1300 group"
+                >
+                  <div className="flex items-center justify-between w-full px-2">
+                    <UserPlus className="w-6 h-6 sm:w-7 sm:h-7 text-govt-green group-hover:animate-bounce" />
+                    <div className="flex-1 text-left ml-4">
+                      <p className="font-bold text-sm sm:text-base">✍️ Register</p>
+                      <p className="text-xs text-muted-foreground">Create a new account</p>
+                    </div>
+                    <div className="text-govt-green/50 group-hover:text-govt-green transition-colors">→</div>
+                  </div>
+                </Button>
+              </>
+            )}
+
+            {/* Divider */}
+            <div className="relative py-4 sm:py-5 animate-in fade-in duration-500 delay-1400">
+              <Separator className="opacity-30" />
             </div>
 
-            {/* Google Signup Button */}
-            <Button
-              onClick={handleGoogleSignup}
-              variant="outline"
-              size="lg"
-              className="w-full h-10 sm:h-12 bg-white hover:bg-gray-50 border-2 hover:text-black border-gray-200 text-gray-700 font-medium shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 animate-in slide-in-from-left-4 delay-1200 text-sm sm:text-base"
-            >
-              <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                />
-              </svg>
-              Create your account with Google
-            </Button>
-
             {/* Security Badge */}
-            <div className="flex items-center justify-center space-x-2 pt-2 sm:pt-3 border-t border-border/50 animate-in slide-in-from-bottom-2 duration-500 delay-1700">
-              <Shield className="w-3 h-3 sm:w-4 sm:h-4 text-govt-green animate-pulse" />
-              <span className="text-xs sm:text-xs text-muted-foreground text-center">
-                Protected by Government-grade Security
+            <div className="flex items-center justify-center space-x-2 p-3 sm:p-4 bg-govt-green/5 border border-govt-green/20 rounded-lg animate-in slide-in-from-bottom-4 duration-500 delay-1500 hover:bg-govt-green/10 transition-colors">
+              <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-govt-green animate-pulse" />
+              <span className="text-xs sm:text-sm font-medium text-foreground text-center">
+                Enterprise-grade security with end-to-end encryption
               </span>
             </div>
           </CardContent>
         </Card>
 
         {/* Footer */}
-        <div className="text-center space-y-2 sm:space-y-2 animate-in fade-in duration-600 delay-1800 px-2">
-          <p className="text-xs sm:text-xs text-muted-foreground animate-in slide-in-from-bottom-1 duration-400 delay-1900 leading-relaxed">
-            By continuing, you agree to our Terms of Service and Privacy Policy
+        <div className="text-center space-y-3 sm:space-y-4 animate-in fade-in duration-600 delay-1800 px-2">
+          <p className="text-xs sm:text-xs text-muted-foreground leading-relaxed">
+            By continuing, you agree to our<br className="sm:hidden" />
+            <Link to="/" className="text-govt-blue hover:underline">Terms of Service</Link>
+            {" "}and{" "}
+            <Link to="/" className="text-govt-blue hover:underline">Privacy Policy</Link>
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-4 text-xs text-muted-foreground animate-in slide-in-from-bottom-1 duration-400 delay-2000">
+          <div className="flex items-center justify-center space-x-4 text-xs text-muted-foreground">
             <Link
               to="/"
-              className="hover:text-govt-blue hover:scale-105 transition-all duration-200 px-2 py-1"
+              className="hover:text-govt-blue hover:scale-110 transition-all duration-200 px-2 py-1 rounded hover:bg-govt-blue/5"
             >
               Back to Home
             </Link>
-            <span className="hidden sm:inline">•</span>
+            <span className="text-border">•</span>
             <a
               href="#"
-              className="hover:text-govt-blue hover:scale-105 transition-all duration-200 px-2 py-1"
+              className="hover:text-govt-blue hover:scale-110 transition-all duration-200 px-2 py-1 rounded hover:bg-govt-blue/5"
             >
               Help Center
             </a>

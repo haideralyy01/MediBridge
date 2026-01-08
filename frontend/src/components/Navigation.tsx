@@ -77,25 +77,22 @@ const Navigation = () => {
           <div className="flex items-center space-x-2 sm:space-x-3">
             <Link to="/login" className="hidden sm:block">
               <Button
-                variant="govt-outline"
+                variant="govt"
                 size="sm"
-                className="text-xs sm:text-sm"
+                className="text-xs sm:text-sm bg-gradient-to-r from-govt-blue to-govt-green hover:from-govt-blue/90 hover:to-govt-green/90"
               >
-                Sign In
+                Get Started
               </Button>
             </Link>
             <Link to="/login" className="block sm:hidden">
-              <Button variant="govt-outline" size="sm" className="text-xs px-2">
-                Login
+              <Button 
+                variant="govt" 
+                size="sm" 
+                className="text-xs px-2 bg-gradient-to-r from-govt-blue to-govt-green hover:from-govt-blue/90 hover:to-govt-green/90"
+              >
+                Start
               </Button>
             </Link>
-            <Button
-              variant="govt"
-              size="sm"
-              className="text-xs sm:text-sm hidden sm:block"
-            >
-              Register
-            </Button>
             <div className="lg:hidden">
               <Menu className="h-5 w-5 text-govt-blue" />
             </div>

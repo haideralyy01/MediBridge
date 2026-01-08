@@ -6,7 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import AuthCallback from "./pages/AuthCallback";
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/DoctorsDashboard";
+import PatientsDashboard from "./pages/PatientsDashboard";
 import HealthRecords from "./pages/HealthRecords";
 import NotFound from "./pages/NotFound";
 
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/login" element={<Login />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/patient-dashboard" element={<PatientsDashboard />} />
           <Route path="/health-records" element={<HealthRecords />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

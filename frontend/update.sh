@@ -35,7 +35,7 @@ echo -e "${GREEN}✅ Git pull completed${NC}"
 
 # Step 3: Check if logo file exists
 echo -e "${BLUE}🖼️  Checking for logo file...${NC}"
-if [ -f "public/1757848899458.png" ]; then
+if [ -f "public/Gemini_Generated_Image_p1hresp1hresp1hr.png" ]; then
     echo -e "${GREEN}✅ Logo file found${NC}"
 else
     echo -e "${YELLOW}⚠️  Warning: Logo file not found${NC}"
@@ -64,7 +64,7 @@ echo -e "${GREEN}✅ Build completed successfully${NC}"
 
 # Step 7: Verify build includes logo
 echo -e "${BLUE}🔍 Verifying build includes logo...${NC}"
-if [ -f "dist/1757848899458.png" ]; then
+if [ -f "dist/Gemini_Generated_Image_p1hresp1hresp1hr.png" ]; then
     echo -e "${GREEN}✅ Logo included in build${NC}"
 else
     echo -e "${YELLOW}⚠️  Warning: Logo not found in build${NC}"
@@ -91,7 +91,7 @@ echo -e "${GREEN}✅ Permissions set${NC}"
 
 # Step 11: Verify logo is deployed
 echo -e "${BLUE}🔍 Verifying logo deployment...${NC}"
-if [ -f "$DEPLOY_DIR/1757848899458.png" ]; then
+if [ -f "$DEPLOY_DIR/Gemini_Generated_Image_p1hresp1hresp1hr.png" ]; then
     echo -e "${GREEN}✅ Logo successfully deployed${NC}"
 else
     echo -e "${RED}❌ Error: Logo not found in deployment${NC}"
