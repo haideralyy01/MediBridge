@@ -61,6 +61,9 @@ import {
   Edit,
   Trash2,
   Download,
+  Pill,
+  Microscope,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -122,6 +125,25 @@ const HealthRecords = () => {
     visitDate: "",
     severity: "mild",
     patientId: "",
+  });
+
+  // Medicine and Test Prescription States
+  const [prescribedMedicines, setPrescribedMedicines] = useState<any[]>([]);
+  const [prescribedTests, setPrescribedTests] = useState<any[]>([]);
+  const [medicineForm, setMedicineForm] = useState({
+    medicineName: "",
+    dosage: "",
+    frequency: "daily",
+    time: "08:00",
+    duration: "",
+    instructions: "",
+  });
+  const [testForm, setTestForm] = useState({
+    testName: "",
+    testType: "blood_test",
+    frequency: "once",
+    reason: "",
+    instructions: "",
   });
 
   useEffect(() => {
@@ -413,6 +435,57 @@ const HealthRecords = () => {
       severity: "mild",
       patientId: "",
     });
+    setPrescribedMedicines([]);
+    setPrescribedTests([]);
+  };
+
+  const handleAddMedicine = () => {
+    if (!medicineForm.medicineName || !medicineForm.dosage) {
+      toast.error("Please fill medicine name and dosage");
+      return;
+    }
+    const newMedicine = {
+      id: Date.now(),
+      ...medicineForm,
+    };
+    setPrescribedMedicines([...prescribedMedicines, newMedicine]);
+    setMedicineForm({
+      medicineName: "",
+      dosage: "",
+      frequency: "daily",
+      time: "08:00",
+      duration: "",
+      instructions: "",
+    });
+    toast.success("Medicine added to prescription");
+  };
+
+  const handleDeleteMedicine = (id: number) => {
+    setPrescribedMedicines(prescribedMedicines.filter((m) => m.id !== id));
+  };
+
+  const handleAddTest = () => {
+    if (!testForm.testName) {
+      toast.error("Please fill test name");
+      return;
+    }
+    const newTest = {
+      id: Date.now(),
+      ...testForm,
+    };
+    setPrescribedTests([...prescribedTests, newTest]);
+    setTestForm({
+      testName: "",
+      testType: "blood_test",
+      frequency: "once",
+      reason: "",
+      instructions: "",
+    });
+    toast.success("Test added to prescription");
+  };
+
+  const handleDeleteTest = (id: number) => {
+    setPrescribedTests(prescribedTests.filter((t) => t.id !== id));
   };
 
   const handleExportToExcel = () => {
@@ -868,6 +941,265 @@ const HealthRecords = () => {
                     }
                     className="h-10 sm:h-11"
                   />
+                </div>
+
+                {/* Medicine Prescription Section */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-semibold flex items-center gap-2">
+                      <Pill className="h-5 w-5 text-govt-green" />
+                      Prescribe Medicine
+                    </h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <Label className="text-sm font-medium">Medicine Name</Label>
+                      <Input
+                        value={medicineForm.medicineName}
+                        onChange={(e) =>
+                          setMedicineForm({
+                            ...medicineForm,
+                            medicineName: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., Aspirin"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Dosage</Label>
+                      <Input
+                        value={medicineForm.dosage}
+                        onChange={(e) =>
+                          setMedicineForm({
+                            ...medicineForm,
+                            dosage: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., 500mg"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div>
+                      <Label className="text-sm font-medium">Frequency</Label>
+                      <select
+                        value={medicineForm.frequency}
+                        onChange={(e) =>
+                          setMedicineForm({
+                            ...medicineForm,
+                            frequency: e.target.value,
+                          })
+                        }
+                        className="w-full h-10 px-3 border border-input rounded-md text-sm"
+                      >
+                        <option value="daily">Daily</option>
+                        <option value="twice_daily">Twice Daily</option>
+                        <option value="thrice_daily">Thrice Daily</option>
+                        <option value="weekly">Weekly</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Time</Label>
+                      <Input
+                        type="time"
+                        value={medicineForm.time}
+                        onChange={(e) =>
+                          setMedicineForm({
+                            ...medicineForm,
+                            time: e.target.value,
+                          })
+                        }
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Duration</Label>
+                      <Input
+                        value={medicineForm.duration}
+                        onChange={(e) =>
+                          setMedicineForm({
+                            ...medicineForm,
+                            duration: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., 7 days"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <Label className="text-sm font-medium">Instructions</Label>
+                    <Input
+                      value={medicineForm.instructions}
+                      onChange={(e) =>
+                        setMedicineForm({
+                          ...medicineForm,
+                          instructions: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Take after breakfast"
+                      className="h-10 text-sm"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddMedicine}
+                    className="w-full bg-govt-green hover:bg-govt-green/90 text-white mb-3"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Medicine
+                  </Button>
+
+                  {prescribedMedicines.length > 0 && (
+                    <div className="space-y-2 mb-3 p-3 bg-green-50 rounded-lg">
+                      {prescribedMedicines.map((med) => (
+                        <div
+                          key={med.id}
+                          className="flex items-start justify-between p-2 bg-white rounded border border-green-200"
+                        >
+                          <div className="flex-1 text-sm">
+                            <p className="font-medium">{med.medicineName}</p>
+                            <p className="text-xs text-gray-600">
+                              {med.dosage} • {med.frequency} • {med.time}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMedicine(med.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Test Prescription Section */}
+                <div className="border-t pt-4 mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-base font-semibold flex items-center gap-2">
+                      <Microscope className="h-5 w-5 text-govt-blue" />
+                      Prescribe Tests
+                    </h3>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <Label className="text-sm font-medium">Test Name</Label>
+                      <Input
+                        value={testForm.testName}
+                        onChange={(e) =>
+                          setTestForm({
+                            ...testForm,
+                            testName: e.target.value,
+                          })
+                        }
+                        placeholder="e.g., Blood Test"
+                        className="h-10 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium">Test Type</Label>
+                      <select
+                        value={testForm.testType}
+                        onChange={(e) =>
+                          setTestForm({
+                            ...testForm,
+                            testType: e.target.value,
+                          })
+                        }
+                        className="w-full h-10 px-3 border border-input rounded-md text-sm"
+                      >
+                        <option value="blood_test">Blood Test</option>
+                        <option value="urine_test">Urine Test</option>
+                        <option value="xray">X-Ray</option>
+                        <option value="ultrasound">Ultrasound</option>
+                        <option value="ct_scan">CT Scan</option>
+                        <option value="mri">MRI</option>
+                        <option value="ecg">ECG</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-sm font-medium">Frequency</Label>
+                    <select
+                      value={testForm.frequency}
+                      onChange={(e) =>
+                        setTestForm({
+                          ...testForm,
+                          frequency: e.target.value,
+                        })
+                      }
+                      className="w-full h-10 px-3 border border-input rounded-md text-sm mb-3"
+                    >
+                      <option value="once">Once (One time only)</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="quarterly">Every 3 Months</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <Label className="text-sm font-medium">Reason/Instructions</Label>
+                    <Textarea
+                      value={testForm.reason}
+                      onChange={(e) =>
+                        setTestForm({
+                          ...testForm,
+                          reason: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Follow-up for diabetes screening"
+                      rows={2}
+                      className="text-sm resize-none min-h-[60px]"
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleAddTest}
+                    className="w-full bg-govt-blue hover:bg-govt-blue/90 text-white mb-3"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Test
+                  </Button>
+
+                  {prescribedTests.length > 0 && (
+                    <div className="space-y-2 mb-3 p-3 bg-blue-50 rounded-lg">
+                      {prescribedTests.map((test) => (
+                        <div
+                          key={test.id}
+                          className="flex items-start justify-between p-2 bg-white rounded border border-blue-200"
+                        >
+                          <div className="flex-1 text-sm">
+                            <p className="font-medium">{test.testName}</p>
+                            <p className="text-xs text-gray-600">
+                              {test.testType} • {test.frequency}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteTest(test.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 pt-4">
