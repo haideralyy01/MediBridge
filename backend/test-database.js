@@ -83,12 +83,10 @@ async function testDatabase() {
 
     console.log("\n🎉 Database connection test completed successfully!");
     console.log("\nNext steps:");
-    console.log('1. Run "npm start" to start the backend server');
+    console.log('1. Initialize database schema: psql -d medibridge -f database-schema.sql');
+    console.log('2. Run "npm start" to start the backend server');
     console.log(
-      "2. Test the dashboard API endpoint: GET /api/dashboard/overview"
-    );
-    console.log(
-      "3. Use the SQL queries in database-test-queries.sql for direct database testing"
+      "3. Test the dashboard API endpoint: GET /api/dashboard/overview"
     );
   } catch (error) {
     console.error("❌ Database test failed:", error.message);

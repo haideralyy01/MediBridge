@@ -143,7 +143,7 @@ npm ls --depth=0
 createdb medibridge
 
 # Run database schema
-psql -d medibridge -f database-hospital-setup.sql
+psql -d medibridge -f database-schema.sql
 
 # Test database connection
 node test-database.js

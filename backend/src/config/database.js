@@ -24,161 +24,21 @@ pool.on("error", (err) => {
   console.error("❌ Database connection error:", err);
 });
 
-// Create all database tables
-const createTables = async () => {
-  // Users table
-  const createUsersTable = `
-    CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
-      google_id VARCHAR(255) UNIQUE,
-      email VARCHAR(255) UNIQUE NOT NULL,
-      name VARCHAR(255) NOT NULL,
-      profile_picture VARCHAR(500),
-      role VARCHAR(50) DEFAULT 'patient',
-      phone VARCHAR(20),
-      date_of_birth DATE,
-      gender VARCHAR(20),
-      address TEXT,
-      emergency_contact JSONB,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      last_login TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);
-    CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
-  `;
+// Database schema is now managed via database-schema.sql file
+// All tables and indexes are defined in that file for consistency and maintainability
+// To initialize the database, run: psql -d medibridge -f database-schema.sql
 
-  // Health Records table
-  const createHealthRecordsTable = `
-    CREATE TABLE IF NOT EXISTS health_records (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      record_type VARCHAR(100) NOT NULL,
-      title VARCHAR(255) NOT NULL,
-      description TEXT,
-      icd11_code VARCHAR(50),
-      icd11_title VARCHAR(255),
-      diagnosis TEXT,
-      symptoms TEXT[],
-      medications JSONB,
-      test_results JSONB,
-      attachments JSONB,
-      doctor_name VARCHAR(255),
-      hospital_name VARCHAR(255),
-      visit_date DATE,
-      severity VARCHAR(50),
-      status VARCHAR(50) DEFAULT 'active',
-      verification_status VARCHAR(50) DEFAULT 'pending',
-      verification_data JSONB,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_health_records_user_id ON health_records(user_id);
-    CREATE INDEX IF NOT EXISTS idx_health_records_type ON health_records(record_type);
-    CREATE INDEX IF NOT EXISTS idx_health_records_icd11 ON health_records(icd11_code);
-    CREATE INDEX IF NOT EXISTS idx_health_records_status ON health_records(status);
-  `;
-
-  // Medical History table
-  const createMedicalHistoryTable = `
-    CREATE TABLE IF NOT EXISTS medical_history (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      condition_name VARCHAR(255) NOT NULL,
-      icd11_code VARCHAR(50),
-      diagnosed_date DATE,
-      status VARCHAR(50) DEFAULT 'active',
-      notes TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_medical_history_user_id ON medical_history(user_id);
-  `;
-
-  // Medications table
-  const createMedicationsTable = `
-    CREATE TABLE IF NOT EXISTS medications (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      medication_name VARCHAR(255) NOT NULL,
-      dosage VARCHAR(100),
-      frequency VARCHAR(100),
-      prescribed_by VARCHAR(255),
-      start_date DATE,
-      end_date DATE,
-      status VARCHAR(50) DEFAULT 'active',
-      notes TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_medications_user_id ON medications(user_id);
-  `;
-
-  // Verification Logs table
-  const createVerificationLogsTable = `
-    CREATE TABLE IF NOT EXISTS verification_logs (
-      id SERIAL PRIMARY KEY,
-      record_id INTEGER REFERENCES health_records(id) ON DELETE CASCADE,
-      verification_type VARCHAR(50) NOT NULL,
-      status VARCHAR(50) NOT NULL,
-      verification_data JSONB,
-      verified_by VARCHAR(255),
-      verified_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      notes TEXT
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_verification_logs_record_id ON verification_logs(record_id);
-  `;
-
-  // Dashboard Analytics table
-  const createAnalyticsTable = `
-    CREATE TABLE IF NOT EXISTS analytics (
-      id SERIAL PRIMARY KEY,
-      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-      metric_type VARCHAR(100) NOT NULL,
-      metric_value JSONB NOT NULL,
-      date_recorded DATE DEFAULT CURRENT_DATE,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    CREATE INDEX IF NOT EXISTS idx_analytics_user_id ON analytics(user_id);
-    CREATE INDEX IF NOT EXISTS idx_analytics_type ON analytics(metric_type);
-    CREATE INDEX IF NOT EXISTS idx_analytics_date ON analytics(date_recorded);
-  `;
-
+// Health check function to verify database connection
+const healthCheck = async () => {
   try {
-    await pool.query(createUsersTable);
-    console.log("✅ Users table initialized successfully");
-
-    await pool.query(createHealthRecordsTable);
-    console.log("✅ Health Records table initialized successfully");
-
-    await pool.query(createMedicalHistoryTable);
-    console.log("✅ Medical History table initialized successfully");
-
-    await pool.query(createMedicationsTable);
-    console.log("✅ Medications table initialized successfully");
-
-    await pool.query(createVerificationLogsTable);
-    console.log("✅ Verification Logs table initialized successfully");
-
-    await pool.query(createAnalyticsTable);
-    console.log("✅ Analytics table initialized successfully");
+    const result = await pool.query('SELECT NOW()');
+    console.log('✅ Database health check passed:', result.rows[0]);
+    return true;
   } catch (error) {
-    console.error("❌ Error creating tables:", error);
+    console.error('❌ Database health check failed:', error);
+    return false;
   }
 };
-
-// Initialize database tables (commented out for now - will be called manually)
-// createTables();
-
-// Import and initialize RBAC audit table (commented out for now)
-// import("../middleware/rbac.js").then(({ createAuditTable }) => {
-//   createAuditTable();
-// });
 
 // Database query helper functions
 export const db = {
