@@ -20,8 +20,8 @@ const Login = () => {
   const [authMode, setAuthMode] = useState<"signin" | "register" | null>(null);
   const [patientId, setPatientId] = useState("");
 
-  const handleGoogleLogin = () => {
-    // For patient login, require patient ID
+  const handleContinueWithGoogle = () => {
+    // For patient, require patient ID
     if (selectedRole === "patient" && !patientId.trim()) {
       toast.error("Please enter your Patient ID");
       return;
@@ -41,12 +41,11 @@ const Login = () => {
       "353620055340-i4nv19h4o58j8jhvvkquhejcb6a5kjgd.apps.googleusercontent.com";
 
     // Use the correct redirect URI based on environment
-    // For development, we'll use the same domain pattern as production
     const isProduction =
       window.location.hostname === "medi-bridge-ebon.vercel.app";
     const redirectUri = isProduction
       ? "https://medi-bridge-ebon.vercel.app/auth/callback"
-      : `${window.location.origin}/auth/callback`; // Dynamic port detection
+      : "http://localhost:8080/auth/callback";
 
     // Debug: Log the redirect URI to console
     console.log("🔍 Debug - Redirect URI:", redirectUri);
@@ -55,53 +54,6 @@ const Login = () => {
     const scope = "email profile";
     const responseType = "code";
     const state = Math.random().toString(36).substring(2, 15);
-
-    // Store state for security validation
-    sessionStorage.setItem("oauth_state", state);
-
-    const authUrl =
-      `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${clientId}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `response_type=${responseType}&` +
-      `scope=${encodeURIComponent(scope)}&` +
-      `state=${state}&` +
-      `access_type=offline&` +
-      `prompt=select_account`;
-
-    window.location.href = authUrl;
-  };
-
-  const handleGoogleSignup = () => {
-    // For patient signup, require patient ID
-    if (selectedRole === "patient" && !patientId.trim()) {
-      toast.error("Please enter your Patient ID");
-      return;
-    }
-
-    // Store patient ID in sessionStorage for use in auth callback
-    if (selectedRole === "patient") {
-      sessionStorage.setItem("patient_id", patientId);
-      sessionStorage.setItem("login_role", "patient");
-    } else {
-      sessionStorage.setItem("login_role", "doctor");
-    }
-
-    // Same OAuth flow for signup - you can differentiate on the backend
-    const clientId =
-      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-      "353620055340-i4nv19h4o58j8jhvvkquhejcb6a5kjgd.apps.googleusercontent.com";
-
-    // Use the correct redirect URI based on environment
-    const isProduction =
-      window.location.hostname === "medi-bridge-ebon.vercel.app";
-    const redirectUri = isProduction
-      ? "https://medi-bridge-ebon.vercel.app/auth/callback"
-      : "http://localhost:8080/auth/callback"; // Use port 8080 where Vite is running
-
-    const scope = "email profile";
-    const responseType = "code";
-    const state = Math.random().toString(36).substring(2, 15) + "_signup";
 
     // Store state for security validation
     sessionStorage.setItem("oauth_state", state);
@@ -241,43 +193,27 @@ const Login = () => {
                   </div>
                 )}
 
-                {/* Sign In Button */}
+                {/* Continue with Google Button */}
                 <Button
                   onClick={() => {
-                    setAuthMode("signin");
-                    handleGoogleLogin();
+                    handleContinueWithGoogle();
                   }}
                   variant="outline"
                   size="lg"
-                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-blue/5 to-transparent hover:from-govt-blue/10 hover:to-govt-blue/5 border-2 border-govt-blue/30 hover:border-govt-blue/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-blue/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-left-4 delay-1250 group"
+                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-blue/5 to-transparent hover:from-govt-blue/10 hover:to-govt-blue/5 border-2 border-govt-blue/30 hover:border-govt-blue/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-blue/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-bottom-4 delay-1250 group"
                 >
                   <div className="flex items-center justify-between w-full px-2">
-                    <LogIn className="w-6 h-6 sm:w-7 sm:h-7 text-govt-blue group-hover:animate-bounce" />
+                    <svg className="w-6 h-6 sm:w-7 sm:h-7 group-hover:animate-bounce" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                    </svg>
                     <div className="flex-1 text-left ml-4">
-                      <p className="font-bold text-sm sm:text-base">🔑 Sign In</p>
-                      <p className="text-xs text-muted-foreground">Access your existing account</p>
+                      <p className="font-bold text-sm sm:text-base">Continue with Google</p>
+                      <p className="text-xs text-muted-foreground">Sign in or create account</p>
                     </div>
                     <div className="text-govt-blue/50 group-hover:text-govt-blue transition-colors">→</div>
-                  </div>
-                </Button>
-
-                {/* Register Button */}
-                <Button
-                  onClick={() => {
-                    setAuthMode("register");
-                    handleGoogleSignup();
-                  }}
-                  variant="outline"
-                  size="lg"
-                  className="w-full h-16 sm:h-20 bg-gradient-to-r from-govt-green/5 to-transparent hover:from-govt-green/10 hover:to-govt-green/5 border-2 border-govt-green/30 hover:border-govt-green/60 text-foreground font-semibold shadow-md hover:shadow-lg hover:shadow-govt-green/20 hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 animate-in slide-in-from-right-4 delay-1300 group"
-                >
-                  <div className="flex items-center justify-between w-full px-2">
-                    <UserPlus className="w-6 h-6 sm:w-7 sm:h-7 text-govt-green group-hover:animate-bounce" />
-                    <div className="flex-1 text-left ml-4">
-                      <p className="font-bold text-sm sm:text-base">✍️ Register</p>
-                      <p className="text-xs text-muted-foreground">Create a new account</p>
-                    </div>
-                    <div className="text-govt-green/50 group-hover:text-govt-green transition-colors">→</div>
                   </div>
                 </Button>
               </>
