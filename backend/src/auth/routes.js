@@ -41,6 +41,7 @@ router.get("/verify", authenticateToken, (req, res) => {
       id: req.user.id,
       email: req.user.email,
       name: req.user.name,
+      googleId: req.user.google_id,
     },
   });
 });

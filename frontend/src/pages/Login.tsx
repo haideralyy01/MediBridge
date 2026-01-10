@@ -12,13 +12,19 @@ import { Label } from "@/components/ui/label";
 import Logo from "@/components/Logo";
 import { Shield, Stethoscope, Users, LogIn, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { clearUserData } from "@/services/authService";
 
 const Login = () => {
   const [selectedRole, setSelectedRole] = useState<"doctor" | "patient" | null>(null);
   const [authMode, setAuthMode] = useState<"signin" | "register" | null>(null);
   const [patientId, setPatientId] = useState("");
+
+  // Clear any existing user data when component mounts
+  useEffect(() => {
+    clearUserData();
+  }, []);
 
   const handleContinueWithGoogle = () => {
     // For patient, require patient ID
@@ -35,17 +41,20 @@ const Login = () => {
       sessionStorage.setItem("login_role", "doctor");
     }
 
-    // Google OAuth integration with your actual client ID
-    const clientId =
-      import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-      "353620055340-i4nv19h4o58j8jhvvkquhejcb6a5kjgd.apps.googleusercontent.com";
+    // Google OAuth integration - must match backend GOOGLE_CLIENT_ID
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      console.error("❌ Missing VITE_GOOGLE_CLIENT_ID in environment");
+      return;
+    }
 
     // Use the correct redirect URI based on environment
     const isProduction =
       window.location.hostname === "medi-bridge-ebon.vercel.app";
     const redirectUri = isProduction
       ? "https://medi-bridge-ebon.vercel.app/auth/callback"
-      : "http://localhost:8080/auth/callback";
+      : import.meta.env.VITE_GOOGLE_REDIRECT_URI || "http://localhost:8080/auth/callback";
 
     // Debug: Log the redirect URI to console
     console.log("🔍 Debug - Redirect URI:", redirectUri);

@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { DiseaseAutocomplete } from "@/components/DiseaseAutocomplete";
 import Logo from "@/components/Logo";
+import { userStorage } from "@/lib/userStorage";
 import {
   Plus,
   FileText,
@@ -153,20 +154,7 @@ const HealthRecords = () => {
 
   const fetchHealthRecords = async () => {
     try {
-      // First try to load from localStorage
-      const storedRecords = localStorage.getItem("health_records");
-      if (storedRecords) {
-        try {
-          const parsedRecords = JSON.parse(storedRecords);
-          setRecords(parsedRecords);
-          setLoading(false);
-          return;
-        } catch (error) {
-          console.error("Error parsing stored health records:", error);
-        }
-      }
-
-      // If no stored records, try API (for future backend integration)
+      // API-first: fetch from backend for persistence
       const token = localStorage.getItem("auth_token");
       const response = await fetch("/api/health-records", {
         headers: {
@@ -178,17 +166,37 @@ const HealthRecords = () => {
       if (response.ok) {
         const data = await response.json();
         setRecords(data.data);
-        // Save to localStorage for offline access
-        localStorage.setItem("health_records", JSON.stringify(data.data));
-      } else {
-        // If API fails, just set empty array
-        console.log("API not available, using local storage only");
-        setRecords([]);
+        // Cache for offline reads
+        userStorage.setJSON("health_records", data.data);
+        return;
       }
+
+      // Fallback to cached localStorage if API not available
+      const storedRecords = userStorage.getItem("health_records");
+      if (storedRecords) {
+        try {
+          const parsedRecords = JSON.parse(storedRecords);
+          setRecords(parsedRecords);
+          return;
+        } catch (error) {
+          console.error("Error parsing stored health records:", error);
+        }
+      }
+
+      setRecords([]);
     } catch (error) {
       console.error("Failed to fetch health records:", error);
-      // Fallback to empty array if everything fails
-      setRecords([]);
+      // Fallback to local cache
+      const storedRecords = userStorage.getItem("health_records");
+      if (storedRecords) {
+        try {
+          setRecords(JSON.parse(storedRecords));
+        } catch (_) {
+          setRecords([]);
+        }
+      } else {
+        setRecords([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -219,7 +227,7 @@ const HealthRecords = () => {
     setRecords(updatedRecords);
 
     // Save to localStorage so Dashboard can access it
-    localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+    userStorage.setJSON("health_records", updatedRecords);
 
     toast.success("Sample health record added successfully");
   };
@@ -228,124 +236,83 @@ const HealthRecords = () => {
     e.preventDefault();
 
     try {
+      const token = localStorage.getItem("auth_token");
+
       if (editingRecordId) {
-        // Update existing record
-        const updatedRecord = {
-          id: editingRecordId,
+        // Update existing record via API
+        const body = {
           title: formData.title,
-          record_type: formData.recordType,
+          record_type: undefined, // ignored if provided; keep API field names consistent
+          recordType: formData.recordType,
           description: formData.description,
-          icd11_code: formData.icd11Code,
-          icd11_title: formData.icd11Title,
+          icd11Code: formData.icd11Code,
+          icd11Title: formData.icd11Title,
           diagnosis: formData.diagnosis,
           symptoms: formData.symptoms
             ? formData.symptoms.split(",").map((s) => s.trim())
             : [],
-          namaste_name: formData.namasteName,
-          doctor_name: formData.doctorName,
-          hospital_name: formData.hospitalName,
-          visit_date: formData.visitDate,
+          doctorName: formData.doctorName,
+          hospitalName: formData.hospitalName,
+          visitDate: formData.visitDate,
           severity: formData.severity,
-          verification_status:
-            records.find((r) => r.id === editingRecordId)
-              ?.verification_status || "pending",
-          created_at:
-            records.find((r) => r.id === editingRecordId)?.created_at ||
-            new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         };
 
-        const updatedRecords = records.map((record) =>
-          record.id === editingRecordId ? updatedRecord : record
-        );
-        setRecords(updatedRecords);
-        localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+        const resp = await fetch(`/api/health-records/${editingRecordId}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to update record");
+        }
+
+        const data = await resp.json();
+        const updated = records.map((r) => (r.id === editingRecordId ? data.data : r));
+        setRecords(updated);
+        userStorage.setJSON("health_records", updated);
         toast.success("Health record updated successfully");
       } else {
-        // Create new record
-        const newRecord = {
-          id: Date.now(),
+        // Create new record via API
+        const body = {
+          recordType: formData.recordType,
           title: formData.title,
-          record_type: formData.recordType,
           description: formData.description,
-          icd11_code: formData.icd11Code,
-          icd11_title: formData.icd11Title,
+          icd11Code: formData.icd11Code,
+          icd11Title: formData.icd11Title,
           diagnosis: formData.diagnosis,
           symptoms: formData.symptoms
             ? formData.symptoms.split(",").map((s) => s.trim())
             : [],
-          namaste_name: formData.namasteName,
-          doctor_name: formData.doctorName,
-          hospital_name: formData.hospitalName,
-          visit_date: formData.visitDate,
+          doctorName: formData.doctorName,
+          hospitalName: formData.hospitalName,
+          visitDate: formData.visitDate,
           severity: formData.severity,
-          patient_id: formData.patientId,
-          verification_status: "pending",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
+          // Optional: medications/testResults could be added here in future
         };
 
-        const updatedRecords = [...records, newRecord];
-        setRecords(updatedRecords);
-        localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+        const resp = await fetch(`/api/health-records`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
 
-        // Save prescribed medicines to patient reminders
-        if (prescribedMedicines.length > 0) {
-          const remindersStored = localStorage.getItem("patient_reminders") || "[]";
-          const reminders = JSON.parse(remindersStored);
-          const newReminders = prescribedMedicines.map((med) => ({
-            id: med.id,
-            type: "medicine" as const,
-            title: med.medicineName,
-            description: `Dosage: ${med.dosage}. ${med.instructions}`,
-            reminderDate: new Date().toISOString().split("T")[0],
-            reminderTime: med.time,
-            frequency: med.frequency,
-          }));
-          const updatedReminders = [...reminders, ...newReminders];
-          localStorage.setItem("patient_reminders", JSON.stringify(updatedReminders));
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          throw new Error(err.message || "Failed to create record");
         }
 
-        // Save prescribed tests to patient lab reports
-        if (prescribedTests.length > 0) {
-          const labReportsStored = localStorage.getItem("patient_lab_reports") || "[]";
-          const labReports = JSON.parse(labReportsStored);
-          const newLabReports = prescribedTests.map((test) => ({
-            id: test.id,
-            testName: test.testName,
-            date: new Date().toISOString().split("T")[0],
-            status: "pending" as const,
-            testType: test.testType,
-            frequency: test.frequency,
-            reason: test.reason,
-          }));
-          const updatedLabReports = [...labReports, ...newLabReports];
-          localStorage.setItem("patient_lab_reports", JSON.stringify(updatedLabReports));
-        }
-
-        // Save checkup reminder if days specified
-        if (nextCheckupDays && parseInt(nextCheckupDays) > 0) {
-          const remindersStored = localStorage.getItem("patient_reminders") || "[]";
-          const reminders = JSON.parse(remindersStored);
-          
-          // Calculate checkup date
-          const checkupDate = new Date();
-          checkupDate.setDate(checkupDate.getDate() + parseInt(nextCheckupDays));
-          
-          const checkupReminder = {
-            id: Date.now(),
-            type: "checkup" as const,
-            title: `Follow-up Checkup (${formData.doctorName ? `Dr. ${formData.doctorName}` : "Doctor"})`,
-            description: `Follow-up visit required. Original visit date: ${formData.visitDate || new Date().toISOString().split("T")[0]}`,
-            reminderDate: checkupDate.toISOString().split("T")[0],
-            reminderTime: "10:00",
-            frequency: "once" as const,
-          };
-          
-          const updatedReminders = [...reminders, checkupReminder];
-          localStorage.setItem("patient_reminders", JSON.stringify(updatedReminders));
-        }
-
+        const data = await resp.json();
+        const updated = [...records, data.data];
+        setRecords(updated);
+        userStorage.setJSON("health_records", updated);
         toast.success("Health record created successfully");
       }
 
@@ -367,9 +334,9 @@ const HealthRecords = () => {
         severity: "mild",
         patientId: "",
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to save health record:", error);
-      toast.error("Failed to create health record");
+      toast.error(error?.message || "Failed to save health record");
     }
   };
 
@@ -389,7 +356,7 @@ const HealthRecords = () => {
       setRecords(updatedRecords);
 
       // Save to localStorage
-      localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+      userStorage.setJSON("health_records", updatedRecords);
 
       toast.success("Record verified successfully");
 
@@ -419,35 +386,27 @@ const HealthRecords = () => {
 
   const handleDeleteRecord = async (recordId: number) => {
     try {
-      // Remove record from local state
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch(`/api/health-records/${recordId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to delete record");
+      }
+
       const updatedRecords = records.filter((record) => record.id !== recordId);
       setRecords(updatedRecords);
-
-      // Update localStorage
-      localStorage.setItem("health_records", JSON.stringify(updatedRecords));
-
+      userStorage.setJSON("health_records", updatedRecords);
       toast.success("Health record deleted successfully");
-
-      // Try API call in background (optional)
-      try {
-        const token = localStorage.getItem("auth_token");
-        const response = await fetch(`/api/health-records/${recordId}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (response.ok) {
-          console.log("Record also deleted on server");
-        }
-      } catch (apiError) {
-        console.log("API not available, deleted locally only");
-      }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Delete failed:", error);
-      toast.error("Failed to delete record");
+      toast.error(error?.message || "Failed to delete record");
     }
   };
 
@@ -499,53 +458,149 @@ const HealthRecords = () => {
     setNextCheckupDays("");
   };
 
-  const handleAddMedicine = () => {
+  const handleAddMedicine = async () => {
     if (!medicineForm.medicineName || !medicineForm.dosage) {
       toast.error("Please fill medicine name and dosage");
       return;
     }
-    const newMedicine = {
-      id: Date.now(),
-      ...medicineForm,
-    };
-    setPrescribedMedicines([...prescribedMedicines, newMedicine]);
-    setMedicineForm({
-      medicineName: "",
-      dosage: "",
-      frequency: "daily",
-      time: "08:00",
-      duration: "",
-      instructions: "",
-    });
-    toast.success("Medicine added to prescription");
+    try {
+      const token = localStorage.getItem("auth_token");
+      const body = {
+        medicationName: medicineForm.medicineName,
+        dosage: medicineForm.dosage,
+        frequency: medicineForm.frequency,
+        prescribedBy: formData.doctorName || "Doctor",
+        startDate: new Date().toISOString().split("T")[0],
+        endDate: undefined,
+        notes: `time=${medicineForm.time}; duration=${medicineForm.duration}; instructions=${medicineForm.instructions}`,
+      };
+      const resp = await fetch(`/api/medications`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to create medication");
+      }
+      const data = await resp.json();
+      const row = data.data;
+      // Normalize API response to UI shape
+      const normalized = {
+        id: row.id,
+        medicineName: row.medication_name ?? medicineForm.medicineName,
+        dosage: row.dosage ?? medicineForm.dosage,
+        frequency: row.frequency ?? medicineForm.frequency,
+        time: (row.notes || "").match(/time=([^;]+)/)?.[1] ?? medicineForm.time,
+        duration: (row.notes || "").match(/duration=([^;]+)/)?.[1] ?? medicineForm.duration,
+        instructions:
+          (row.notes || "").match(/instructions=([^;]+)/)?.[1] ?? medicineForm.instructions,
+        startDate: row.start_date ?? new Date().toISOString().split("T")[0],
+        createdAt: row.created_at ?? new Date().toISOString(),
+      } as any;
+      setPrescribedMedicines([...prescribedMedicines, normalized]);
+      setMedicineForm({
+        medicineName: "",
+        dosage: "",
+        frequency: "daily",
+        time: "08:00",
+        duration: "",
+        instructions: "",
+      });
+      toast.success("Medicine added to prescription");
+    } catch (error: any) {
+      console.error("Failed to save medication:", error);
+      toast.error(error?.message || "Failed to save medication");
+    }
   };
 
-  const handleDeleteMedicine = (id: number) => {
-    setPrescribedMedicines(prescribedMedicines.filter((m) => m.id !== id));
+  const handleDeleteMedicine = async (id: number) => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const resp = await fetch(`/api/medications/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to delete medication");
+      }
+      setPrescribedMedicines(prescribedMedicines.filter((m) => m.id !== id));
+      toast.success("Medication deleted");
+    } catch (error: any) {
+      console.error("Failed to delete medication:", error);
+      toast.error(error?.message || "Failed to delete medication");
+    }
   };
 
-  const handleAddTest = () => {
+  const handleAddTest = async () => {
     if (!testForm.testName) {
       toast.error("Please fill test name");
       return;
     }
-    const newTest = {
-      id: Date.now(),
-      ...testForm,
-    };
-    setPrescribedTests([...prescribedTests, newTest]);
-    setTestForm({
-      testName: "",
-      testType: "blood_test",
-      frequency: "once",
-      reason: "",
-      instructions: "",
-    });
-    toast.success("Test added to prescription");
+    try {
+      const token = localStorage.getItem("auth_token");
+      const body = {
+        testName: testForm.testName,
+        testType: testForm.testType,
+        frequency: testForm.frequency,
+        reason: testForm.reason,
+        instructions: testForm.instructions,
+      };
+      const resp = await fetch(`/api/tests`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to create test record");
+      }
+      const data = await resp.json();
+      setPrescribedTests([...prescribedTests, data.data]);
+      setTestForm({
+        testName: "",
+        testType: "blood_test",
+        frequency: "once",
+        reason: "",
+        instructions: "",
+      });
+      toast.success("Test added to prescription");
+    } catch (error: any) {
+      console.error("Failed to save test:", error);
+      toast.error(error?.message || "Failed to save test");
+    }
   };
 
-  const handleDeleteTest = (id: number) => {
-    setPrescribedTests(prescribedTests.filter((t) => t.id !== id));
+  const handleDeleteTest = async (id: number) => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      const resp = await fetch(`/api/tests/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to delete test record");
+      }
+      setPrescribedTests(prescribedTests.filter((t) => t.id !== id));
+      toast.success("Test deleted");
+    } catch (error: any) {
+      console.error("Failed to delete test:", error);
+      toast.error(error?.message || "Failed to delete test");
+    }
   };
 
   const handleExportToExcel = () => {

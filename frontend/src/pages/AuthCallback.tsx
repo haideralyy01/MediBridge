@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Logo from "@/components/Logo";
 import { FolderOpen, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
+import apiService from "@/services/apiService";
+import { userStorage } from "@/lib/userStorage";
 
 const AuthCallback = () => {
   const [status, setStatus] = useState<"loading" | "success" | "error">(
@@ -43,74 +45,87 @@ const AuthCallback = () => {
         sessionStorage.removeItem("oauth_state");
 
         if (code) {
-          // Here you would typically send the code to your backend
-          // For now, we'll simulate a successful authentication
           setStatus("loading");
-          setMessage("Exchanging authorization code...");
+          setMessage("Exchanging authorization code with Google...");
 
-          // Simulate API call delay
-          setTimeout(() => {
-            // Determine if this was a signup or login based on state
-            const isSignup = state.includes("_signup");
+          try {
+            // Send authorization code to backend
+            const response = await fetch("/api/auth/google", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ 
+                code,
+                redirectUri: window.location.origin + "/auth/callback"
+              }),
+            });
 
-            // Get role and patient ID from sessionStorage
-            const loginRole = sessionStorage.getItem("login_role") || "doctor";
-            const patientId = sessionStorage.getItem("patient_id");
+            if (!response.ok) {
+              const errorData = await response.json();
+              throw new Error(errorData.message || "Authentication failed");
+            }
 
-            // Store dummy user data for now (replace with actual user data from backend)
-            const userData = {
-              email: "user@example.com", // This would come from the backend
-              name: "John Doe",
-              role: loginRole,
-              loginTime: new Date().toISOString(),
+            const data = await response.json();
+            console.log("✅ User authenticated and saved to database:", data.user);
+
+            // Store authentication data
+            // First, clean old global keys to avoid cross-user leakage in dev
+            userStorage.removeLegacyGlobals();
+            localStorage.setItem("auth_token", data.accessToken);
+            // Sanitize dev placeholder identity to prevent UI bleed-through
+            const sanitizedUser = {
+              ...data.user,
+              email: (data.user.email && data.user.email.endsWith("@example.com")) ? "" : data.user.email,
+              name: (data.user.name === "Development User" || (data.user.name || "").startsWith("Test User")) ? "" : data.user.name,
             };
-            localStorage.setItem("user_data", JSON.stringify(userData));
-            localStorage.setItem("auth_token", "dummy_token_" + Date.now());
+            localStorage.setItem("user_data", JSON.stringify(sanitizedUser));
+            localStorage.setItem("user_id", data.user.id.toString());
+
+            // Get role from sessionStorage
+            const loginRole = sessionStorage.getItem("login_role") || "doctor";
+            localStorage.setItem("user_role", loginRole);
 
             // Store patient ID if patient is logging in
+            const patientId = sessionStorage.getItem("patient_id");
             if (loginRole === "patient" && patientId) {
               localStorage.setItem("patient_id", patientId);
             }
 
             setStatus("success");
-            setMessage(
-              isSignup ? "Account created successfully!" : "Login successful!"
-            );
+            setMessage("Authentication successful! Data saved to database.");
 
-            // Redirect to appropriate dashboard after a short delay
-            setTimeout(() => {
-              if (loginRole === "patient") {
-                navigate("/patient-dashboard");
-              } else {
-                navigate("/dashboard");
+            // Decide destination based on existing doctor profile
+            if (loginRole === "patient") {
+              setTimeout(() => navigate("/patient-dashboard"), 800);
+            } else {
+              try {
+                const profileRes = await fetch(`/api/doctor/profile`, {
+                  headers: {
+                    'Authorization': `Bearer ${data.accessToken}`,
+                    'Content-Type': 'application/json'
+                  }
+                });
+                if (profileRes.ok) {
+                  // Profile exists → go to dashboard
+                  setTimeout(() => navigate("/dashboard"), 800);
+                } else if (profileRes.status === 404) {
+                  // No profile → go to setup
+                  setTimeout(() => navigate("/doctor-profile-setup"), 800);
+                } else {
+                  // On unexpected error, default to setup to let user proceed
+                  setTimeout(() => navigate("/doctor-profile-setup"), 800);
+                }
+              } catch (_) {
+                // Network/other error → default to setup
+                setTimeout(() => navigate("/doctor-profile-setup"), 800);
               }
-            }, 2000);
-          }, 1500);
-
-          // TODO: Replace this simulation with actual backend integration:
-          /*
-          const response = await fetch('/api/auth/google', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ 
-              code, 
-              isSignup: state.includes('_signup') 
-            }),
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            // Store user token/session
-            localStorage.setItem('auth_token', data.token);
-            setStatus('success');
-            setMessage('Authentication successful!');
-            setTimeout(() => navigate('/dashboard'), 2000);
-          } else {
-            throw new Error('Authentication failed');
+            }
+          } catch (error) {
+            console.error("❌ Authentication error:", error);
+            setStatus("error");
+            setMessage(`Authentication failed: ${error.message}`);
           }
-          */
         } else {
           setStatus("error");
           setMessage("No authorization code received.");

@@ -35,6 +35,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import Logo from "@/components/Logo";
+import { userStorage } from "@/lib/userStorage";
+import Chatbot from "@/components/Chatbot";
 import { toast } from "sonner";
 import {
   Heart,
@@ -91,6 +93,7 @@ interface PrescribedMedicine {
   instructions: string;
   startDate: string;
   patientId?: string;
+  times?: string[];
   createdAt: string;
 }
 
@@ -113,6 +116,8 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [userEmail, setUserEmail] = useState<string>("");
+  const [doctorProfile, setDoctorProfile] = useState<any>(null);
+  const [showProfileReminder, setShowProfileReminder] = useState(false);
   const [prescribedMedicines, setPrescribedMedicines] = useState<PrescribedMedicine[]>([]);
   const [prescribedTests, setPrescribedTests] = useState<PrescribedTest[]>([]);
   const [isMedicineDialogOpen, setIsMedicineDialogOpen] = useState(false);
@@ -124,6 +129,8 @@ const Dashboard = () => {
     duration: "",
     instructions: "",
     startDate: "",
+    patientId: "",
+    times: [] as string[],
   });
   const [testForm, setTestForm] = useState({
     testName: "",
@@ -131,6 +138,7 @@ const Dashboard = () => {
     frequency: "once",
     reason: "",
     instructions: "",
+    patientId: "",
   });
   const navigate = useNavigate();
 
@@ -139,24 +147,41 @@ const Dashboard = () => {
     loadPrescribedMedicines();
     loadPrescribedTests();
 
-    // Get user email from localStorage if available
+    // Get user email from localStorage if available, but hide dev placeholders
     const userData = localStorage.getItem("user_data");
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        setUserEmail(user.email || "");
+        const email = user.email || "";
+        setUserEmail(email.endsWith("@example.com") ? "" : email);
       } catch (error) {
         console.error("Error parsing user data:", error);
       }
     }
 
+    // Check doctor profile completion
+    const storedProfile = userStorage.getItem("doctor_profile");
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        setDoctorProfile(profile);
+        setShowProfileReminder(!profile.profileCompleted);
+      } catch (error) {
+        console.error("Error parsing doctor profile:", error);
+        setShowProfileReminder(true);
+      }
+    } else {
+      setShowProfileReminder(true);
+    }
+
     // Listen for storage changes (when health records are updated)
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "health_records") {
+      if (!e.key) return;
+      if (e.key.startsWith("health_records:")) {
         fetchDashboardData();
-      } else if (e.key === "prescribed_medicines") {
+      } else if (e.key.startsWith("prescribed_medicines:")) {
         loadPrescribedMedicines();
-      } else if (e.key === "prescribed_tests") {
+      } else if (e.key.startsWith("prescribed_tests:")) {
         loadPrescribedTests();
       }
     };
@@ -177,16 +202,35 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch health records from localStorage instead of API
-      const storedRecords = localStorage.getItem("health_records");
+      // Fetch health records from API first
       let healthRecords: HealthRecord[] = [];
+      try {
+        const token = localStorage.getItem("auth_token");
+        const resp = await fetch("/api/health-records", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          healthRecords = data.data as HealthRecord[];
+          userStorage.setJSON("health_records", healthRecords);
+        }
+      } catch (_) {
+        // ignore and fall back to cache
+      }
 
-      if (storedRecords) {
-        try {
-          healthRecords = JSON.parse(storedRecords);
-        } catch (error) {
-          console.error("Error parsing stored health records:", error);
-          healthRecords = [];
+      if (healthRecords.length === 0) {
+        // Fall back to cached local storage if API unavailable
+        const storedRecords = userStorage.getItem("health_records");
+        if (storedRecords) {
+          try {
+            healthRecords = JSON.parse(storedRecords);
+          } catch (error) {
+            console.error("Error parsing stored health records:", error);
+            healthRecords = [];
+          }
         }
       }
 
@@ -259,61 +303,174 @@ const Dashboard = () => {
     }
   };
 
-  const loadPrescribedMedicines = () => {
+  const loadPrescribedMedicines = async () => {
     try {
-      const stored = localStorage.getItem("prescribed_medicines");
+      // API-first: fetch from backend
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch("/api/medications", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Normalize API rows to UI shape
+        const normalized = (data.data || []).map((row: any) => ({
+          id: row.id,
+          medicineName: row.medication_name,
+          dosage: row.dosage,
+          frequency: row.frequency,
+          duration: (row.notes || "").match(/duration=([^;]+)/)?.[1] || "",
+          instructions: (row.notes || "").match(/instructions=([^;]+)/)?.[1] || "",
+          startDate: row.start_date,
+          createdAt: row.created_at,
+        }));
+        setPrescribedMedicines(normalized);
+        // Cache for fallback
+        userStorage.setJSON("prescribed_medicines", normalized);
+        return;
+      }
+
+      // Fallback to cached localStorage
+      const stored = userStorage.getItem("prescribed_medicines");
       if (stored) {
         setPrescribedMedicines(JSON.parse(stored));
       }
     } catch (error) {
       console.error("Failed to load prescribed medicines:", error);
+      // Fallback to local cache
+      const stored = userStorage.getItem("prescribed_medicines");
+      if (stored) {
+        try {
+          setPrescribedMedicines(JSON.parse(stored));
+        } catch (_) {
+          setPrescribedMedicines([]);
+        }
+      }
     }
   };
 
-  const loadPrescribedTests = () => {
+  const loadPrescribedTests = async () => {
     try {
-      const stored = localStorage.getItem("prescribed_tests");
+      // API-first: fetch from backend
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch("/api/tests", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Normalize API rows to UI shape
+        const normalized = (data.data || []).map((row: any) => ({
+          id: row.id,
+          testName: row.test_name,
+          testType: row.test_type,
+          frequency: row.frequency,
+          reason: row.reason,
+          instructions: row.instructions,
+          prescribedDate: row.created_at,
+          createdAt: row.created_at,
+        }));
+        setPrescribedTests(normalized);
+        // Cache for fallback
+        userStorage.setJSON("prescribed_tests", normalized);
+        return;
+      }
+
+      // Fallback to cached localStorage
+      const stored = userStorage.getItem("prescribed_tests");
       if (stored) {
         setPrescribedTests(JSON.parse(stored));
       }
     } catch (error) {
       console.error("Failed to load prescribed tests:", error);
+      // Fallback to local cache
+      const stored = userStorage.getItem("prescribed_tests");
+      if (stored) {
+        try {
+          setPrescribedTests(JSON.parse(stored));
+        } catch (_) {
+          setPrescribedTests([]);
+        }
+      }
     }
   };
 
-  const handleAddMedicine = () => {
-    if (!medicineForm.medicineName || !medicineForm.dosage || !medicineForm.startDate) {
-      toast.error("Please fill all required fields");
+  const handleAddMedicine = async () => {
+    if (!medicineForm.medicineName || !medicineForm.dosage || !medicineForm.startDate || !medicineForm.patientId) {
+      toast.error("Please fill all required fields including Patient ID");
       return;
     }
 
     try {
+      const token = localStorage.getItem("auth_token");
+      
+      // Save to backend API
+      const response = await fetch("/api/medications", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          medicationName: medicineForm.medicineName,
+          dosage: medicineForm.dosage,
+          frequency: medicineForm.frequency,
+          prescribedBy: userEmail || "Doctor",
+          startDate: medicineForm.startDate,
+          endDate: null,
+          notes: `duration=${medicineForm.duration};instructions=${medicineForm.instructions};patientId=${medicineForm.patientId};times=${medicineForm.times.join(",")}`,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to save medication");
+      }
+
+      const data = await response.json();
+      
+      // Map API response to UI shape
       const newMedicine: PrescribedMedicine = {
-        id: Date.now(),
-        ...medicineForm,
-        createdAt: new Date().toISOString(),
+        id: data.data.id,
+        medicineName: data.data.medication_name,
+        dosage: data.data.dosage,
+        frequency: data.data.frequency,
+        duration: medicineForm.duration,
+        instructions: medicineForm.instructions,
+        startDate: data.data.start_date,
+        patientId: medicineForm.patientId,
+        times: medicineForm.times,
+        createdAt: data.data.created_at,
       };
 
       const updated = [...prescribedMedicines, newMedicine];
       setPrescribedMedicines(updated);
-      localStorage.setItem("prescribed_medicines", JSON.stringify(updated));
+      userStorage.setJSON("prescribed_medicines", updated);
 
       // Also add to patient reminders
       const remindersStored = localStorage.getItem("patient_reminders") || "[]";
       const reminders = JSON.parse(remindersStored);
       const patientReminder = {
-        id: Date.now(),
+        id: newMedicine.id,
         type: "medicine" as const,
         title: medicineForm.medicineName,
         description: `Dosage: ${medicineForm.dosage}. ${medicineForm.instructions}`,
         reminderDate: medicineForm.startDate,
         reminderTime: "08:00",
         frequency: medicineForm.frequency,
+        patientId: medicineForm.patientId,
+        times: medicineForm.times,
       };
       reminders.push(patientReminder);
       localStorage.setItem("patient_reminders", JSON.stringify(reminders));
 
-      toast.success("Medicine prescribed successfully and added to patient's reminders");
+      toast.success("Medicine prescribed successfully and saved to database");
       setMedicineForm({
         medicineName: "",
         dosage: "",
@@ -321,82 +478,147 @@ const Dashboard = () => {
         duration: "",
         instructions: "",
         startDate: "",
+        patientId: "",
+        times: [],
       });
       setIsMedicineDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to prescribe medicine:", error);
-      toast.error("Failed to prescribe medicine");
+      toast.error(error?.message || "Failed to prescribe medicine");
     }
   };
 
-  const handleAddTest = () => {
-    if (!testForm.testName || !testForm.testType) {
-      toast.error("Please fill all required fields");
+  const handleAddTest = async () => {
+    if (!testForm.testName || !testForm.testType || !testForm.patientId) {
+      toast.error("Please fill all required fields including Patient ID");
       return;
     }
 
     try {
+      const token = localStorage.getItem("auth_token");
+      
+      // Save to backend API
+      const response = await fetch("/api/tests", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          testName: testForm.testName,
+          testType: testForm.testType,
+          frequency: testForm.frequency,
+          reason: testForm.reason,
+          instructions: `patientId=${testForm.patientId};${testForm.instructions}`,
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to save test");
+      }
+
+      const data = await response.json();
+      
+      // Map API response to UI shape
       const newTest: PrescribedTest = {
-        id: Date.now(),
-        ...testForm,
-        prescribedDate: new Date().toISOString().split("T")[0],
-        createdAt: new Date().toISOString(),
+        id: data.data.id,
+        testName: data.data.test_name,
+        testType: data.data.test_type,
+        frequency: data.data.frequency,
+        reason: data.data.reason,
+        instructions: testForm.instructions,
+        prescribedDate: data.data.created_at?.split("T")[0] || new Date().toISOString().split("T")[0],
+        patientId: testForm.patientId,
+        createdAt: data.data.created_at,
       };
 
       const updated = [...prescribedTests, newTest];
       setPrescribedTests(updated);
-      localStorage.setItem("prescribed_tests", JSON.stringify(updated));
+      userStorage.setJSON("prescribed_tests", updated);
 
       // Also add to patient lab reports
       const labReportsStored = localStorage.getItem("patient_lab_reports") || "[]";
       const labReports = JSON.parse(labReportsStored);
       const patientLabReport = {
-        id: Date.now(),
+        id: newTest.id,
         testName: testForm.testName,
         date: new Date().toISOString().split("T")[0],
         status: "pending" as const,
         testType: testForm.testType,
         frequency: testForm.frequency,
+        patientId: testForm.patientId,
       };
       labReports.push(patientLabReport);
       localStorage.setItem("patient_lab_reports", JSON.stringify(labReports));
 
-      toast.success("Test prescribed successfully and added to patient's reports");
+      toast.success("Test prescribed successfully and saved to database");
       setTestForm({
         testName: "",
         testType: "blood_test",
         frequency: "once",
         reason: "",
         instructions: "",
+        patientId: "",
       });
       setIsTestDialogOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to prescribe test:", error);
-      toast.error("Failed to prescribe test");
+      toast.error(error?.message || "Failed to prescribe test");
     }
   };
 
-  const handleDeleteMedicine = (id: number) => {
+  const handleDeleteMedicine = async (id: number) => {
     try {
+      const token = localStorage.getItem("auth_token");
+      
+      // Delete from backend API
+      const response = await fetch(`/api/medications/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to delete medication");
+      }
+
       const updated = prescribedMedicines.filter((m) => m.id !== id);
       setPrescribedMedicines(updated);
-      localStorage.setItem("prescribed_medicines", JSON.stringify(updated));
+      userStorage.setJSON("prescribed_medicines", updated);
       toast.success("Medicine removed successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete medicine:", error);
-      toast.error("Failed to delete medicine");
+      toast.error(error?.message || "Failed to delete medicine");
     }
   };
 
-  const handleDeleteTest = (id: number) => {
+  const handleDeleteTest = async (id: number) => {
     try {
+      const token = localStorage.getItem("auth_token");
+      
+      // Delete from backend API
+      const response = await fetch(`/api/tests/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to delete test");
+      }
+
       const updated = prescribedTests.filter((t) => t.id !== id);
       setPrescribedTests(updated);
-      localStorage.setItem("prescribed_tests", JSON.stringify(updated));
+      userStorage.setJSON("prescribed_tests", updated);
       toast.success("Test removed successfully");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to delete test:", error);
-      toast.error("Failed to delete test");
+      toast.error(error?.message || "Failed to delete test");
     }
   };
 
@@ -434,13 +656,13 @@ const Dashboard = () => {
   const handleDeleteRecord = async (recordId: number) => {
     try {
       // Remove record from localStorage
-      const storedRecords = localStorage.getItem("health_records");
+      const storedRecords = userStorage.getItem("health_records");
       if (storedRecords) {
         const healthRecords = JSON.parse(storedRecords);
         const updatedRecords = healthRecords.filter(
           (record: HealthRecord) => record.id !== recordId
         );
-        localStorage.setItem("health_records", JSON.stringify(updatedRecords));
+        userStorage.setJSON("health_records", updatedRecords);
 
         // Refresh dashboard data
         fetchDashboardData();
@@ -562,11 +784,9 @@ const Dashboard = () => {
             <p className="text-sm sm:text-base text-gray-600">
               Manage patient health records and consultations
             </p>
-            {userEmail && (
-              <p className="text-xs sm:text-sm text-gray-500">
-                Welcome back, Dr. {userEmail.split("@")[0]}
-              </p>
-            )}
+            <p className="text-xs sm:text-sm text-gray-500">
+              {doctorProfile?.name ? `Welcome back, Dr. ${doctorProfile.name}` : `Welcome back`}
+            </p>
           </div>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
@@ -577,6 +797,17 @@ const Dashboard = () => {
             <FileText className="h-5 w-5" />
             <span>+ New Health Record</span>
           </Button>
+          {doctorProfile && (
+            <Button
+              variant="outline"
+              className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm"
+              onClick={() => navigate("/doctor-profile-setup")}
+            >
+              <Edit className="h-4 w-4" />
+              <span className="hidden sm:inline">Edit Profile</span>
+              <span className="sm:hidden">Profile</span>
+            </Button>
+          )}
           <Button
             className="flex items-center justify-center gap-2 w-full sm:w-auto text-sm"
             onClick={handleExportToExcel}
@@ -595,6 +826,42 @@ const Dashboard = () => {
           </Button>
         </div>
       </div>
+
+      {/* Profile Completion Reminder */}
+      {showProfileReminder && (
+        <Card className="mb-6 border-govt-orange bg-gradient-to-r from-orange-50 to-yellow-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <AlertCircle className="h-5 w-5 text-govt-orange" />
+                <div>
+                  <h3 className="font-semibold text-govt-orange">Complete Your Doctor Profile</h3>
+                  <p className="text-sm text-gray-600">
+                    Complete your professional profile to help patients find and trust you.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => navigate("/doctor-profile-setup")}
+                  className="bg-govt-orange hover:bg-govt-orange/90"
+                >
+                  Complete Profile
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowProfileReminder(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
@@ -683,11 +950,12 @@ const Dashboard = () => {
         onValueChange={setActiveTab}
         className="space-y-6"
       >
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Patient Overview</TabsTrigger>
           <TabsTrigger value="records">Consultations</TabsTrigger>
           <TabsTrigger value="medicines">💊 Medicines</TabsTrigger>
           <TabsTrigger value="tests">🔬 Tests</TabsTrigger>
+          <TabsTrigger value="reports">📊 Reports</TabsTrigger>
           <TabsTrigger value="analytics">Clinical Analytics</TabsTrigger>
           <TabsTrigger value="verification">Verification Status</TabsTrigger>
         </TabsList>
@@ -1131,14 +1399,28 @@ const Dashboard = () => {
                       Prescribe Medicine
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Prescribe Medicine</DialogTitle>
                       <DialogDescription>
                         Add a medicine prescription for the patient
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4">
+                    <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="patient-id">Patient ID *</Label>
+                        <Input
+                          id="patient-id"
+                          placeholder="e.g., P12345"
+                          value={medicineForm.patientId}
+                          onChange={(e) =>
+                            setMedicineForm({
+                              ...medicineForm,
+                              patientId: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="med-name">Medicine Name *</Label>
                         <Input
@@ -1187,6 +1469,80 @@ const Dashboard = () => {
                           <option value="monthly">Monthly</option>
                         </select>
                       </div>
+                      
+                      {/* Time Selection */}
+                      {medicineForm.frequency !== "weekly" && medicineForm.frequency !== "monthly" && (
+                        <div className="space-y-2">
+                          <Label>Select Times</Label>
+                          <div className="space-y-2">
+                            {(() => {
+                              const getDefaultTimes = (freq: string) => {
+                                switch (freq) {
+                                  case "daily": return ["08:00"];
+                                  case "twice_daily": return ["08:00", "20:00"];
+                                  case "thrice_daily": return ["08:00", "14:00", "20:00"];
+                                  default: return ["08:00"];
+                                }
+                              };
+                              
+                              const defaultTimes = getDefaultTimes(medicineForm.frequency);
+                              const currentTimes = medicineForm.times.length > 0 ? medicineForm.times : defaultTimes;
+                              
+                              return (
+                                <div className="space-y-2">
+                                  {currentTimes.map((time, index) => (
+                                    <div key={index} className="flex items-center gap-2">
+                                      <Input
+                                        type="time"
+                                        value={time}
+                                        onChange={(e) => {
+                                          const newTimes = [...currentTimes];
+                                          newTimes[index] = e.target.value;
+                                          setMedicineForm({
+                                            ...medicineForm,
+                                            times: newTimes,
+                                          });
+                                        }}
+                                        className="flex-1"
+                                      />
+                                      {currentTimes.length > 1 && (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const newTimes = currentTimes.filter((_, i) => i !== index);
+                                            setMedicineForm({
+                                              ...medicineForm,
+                                              times: newTimes,
+                                            });
+                                          }}
+                                        >
+                                          Remove
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ))}
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      setMedicineForm({
+                                        ...medicineForm,
+                                        times: [...currentTimes, "12:00"],
+                                      });
+                                    }}
+                                    className="w-full"
+                                  >
+                                    + Add Time
+                                  </Button>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      )}
                       <div className="space-y-2">
                         <Label htmlFor="duration">Duration</Label>
                         <Input
@@ -1229,7 +1585,7 @@ const Dashboard = () => {
                           }
                         />
                       </div>
-                      <Button onClick={handleAddMedicine} className="w-full">
+                      <Button onClick={handleAddMedicine} className="w-full sticky bottom-0 bg-white border-t pt-4 mt-4">
                         Prescribe Medicine
                       </Button>
                     </div>
@@ -1272,6 +1628,18 @@ const Dashboard = () => {
                               <span className="font-medium">Start Date:</span>{" "}
                               {new Date(medicine.startDate).toLocaleDateString()}
                             </p>
+                            {medicine.patientId && (
+                              <p>
+                                <span className="font-medium">Patient ID:</span>{" "}
+                                {medicine.patientId}
+                              </p>
+                            )}
+                            {medicine.times && medicine.times.length > 0 && (
+                              <p>
+                                <span className="font-medium">Times:</span>{" "}
+                                {medicine.times.join(", ")}
+                              </p>
+                            )}
                             {medicine.instructions && (
                               <p className="mt-2 text-gray-700">
                                 <span className="font-medium">Instructions:</span>{" "}
@@ -1329,6 +1697,20 @@ const Dashboard = () => {
                       </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="test-patient-id">Patient ID *</Label>
+                        <Input
+                          id="test-patient-id"
+                          placeholder="e.g., P12345"
+                          value={testForm.patientId}
+                          onChange={(e) =>
+                            setTestForm({
+                              ...testForm,
+                              patientId: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="test-name">Test Name *</Label>
                         <Input
@@ -1454,6 +1836,12 @@ const Dashboard = () => {
                               <span className="font-medium">Prescribed:</span>{" "}
                               {new Date(test.prescribedDate).toLocaleDateString()}
                             </p>
+                            {test.patientId && (
+                              <p>
+                                <span className="font-medium">Patient ID:</span>{" "}
+                                {test.patientId}
+                              </p>
+                            )}
                             {test.reason && (
                               <p>
                                 <span className="font-medium">Reason:</span>{" "}
@@ -1488,6 +1876,75 @@ const Dashboard = () => {
                   </p>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <Card>
+            <CardHeader>
+              <CardTitle>📊 Patient Reports</CardTitle>
+              <CardDescription>
+                View all patient lab reports and test results
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const labReports = JSON.parse(localStorage.getItem("patient_lab_reports") || "[]");
+                return labReports.length > 0 ? (
+                  <div className="space-y-4">
+                    {labReports.map((report: any) => (
+                      <div
+                        key={report.id}
+                        className="p-4 border rounded-lg bg-gradient-to-r from-purple-50 to-transparent hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <Microscope className="h-5 w-5 text-purple-600" />
+                              <h4 className="font-semibold text-lg">
+                                {report.testName}
+                              </h4>
+                              <Badge 
+                                className={report.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                                          report.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                                          'bg-gray-100 text-gray-800'}
+                              >
+                                {report.status}
+                              </Badge>
+                            </div>
+                            <div className="mt-2 space-y-1 text-sm">
+                              <p>
+                                <span className="font-medium">Test Type:</span> {report.testType}
+                              </p>
+                              <p>
+                                <span className="font-medium">Date:</span> {new Date(report.date).toLocaleDateString()}
+                              </p>
+                              {report.patientId && (
+                                <p>
+                                  <span className="font-medium">Patient ID:</span> {report.patientId}
+                                </p>
+                              )}
+                              {report.frequency && (
+                                <p>
+                                  <span className="font-medium">Frequency:</span> {report.frequency}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <Microscope className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">
+                      No lab reports yet. Reports will appear here when tests are prescribed.
+                    </p>
+                  </div>
+                );
+              })()}
             </CardContent>
           </Card>
         </TabsContent>
@@ -1536,6 +1993,17 @@ const Dashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* AI Chatbot */}
+      <Chatbot 
+        userRole="doctor" 
+        userContext={{ 
+          totalRecords: stats?.totalRecords || 0,
+          recentRecords: recentRecords,
+          prescribedMedicines: prescribedMedicines,
+          prescribedTests: prescribedTests
+        }} 
+      />
     </div>
   );
 };

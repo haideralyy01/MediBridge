@@ -5,8 +5,12 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// Initialize Google OAuth2 client
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+// Initialize Google OAuth2 client with credentials
+const googleClient = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_URI
+);
 
 // JWT Helper Functions
 const generateTokens = (user) => {
@@ -26,55 +30,117 @@ const generateTokens = (user) => {
 // Google OAuth Authentication Middleware
 export const googleAuthMiddleware = async (req, res, next) => {
   try {
-    const { token } = req.body;
+    const { code, redirectUri } = req.body;
 
-    if (!token) {
+    if (!code) {
       return res.status(400).json({
         success: false,
-        message: "Google token is required",
+        message: "Authorization code is required",
       });
     }
 
-    // Verify Google token
-    const ticket = await googleClient.verifyIdToken({
-      idToken: token,
-      audience: process.env.GOOGLE_CLIENT_ID,
-    });
+    // Development mode: Use mock authentication ONLY if credentials not set OR code is "dev"
+    const isDevMode = process.env.NODE_ENV === "development";
+    const hasRealCredentials = process.env.GOOGLE_CLIENT_ID && 
+                               process.env.GOOGLE_CLIENT_ID !== "your-client-id-here";
+    const isDevCode = code === "dev" || code === "test";
 
-    const payload = ticket.getPayload();
+    // If dev mode with no real credentials, or explicit dev code, use mock auth
+    if (isDevMode && (!hasRealCredentials || isDevCode)) {
+      // Use a CONSISTENT dev user (not random) to avoid duplicate accounts
+      const fixedEmail = process.env.DEV_FIXED_EMAIL || "dev@medibridge.local";
+      const fixedName = process.env.DEV_FIXED_NAME || "Development User";
+      const googleId = `dev-${fixedEmail.replace(/[^a-z0-9]/gi, '')}`;
 
-    if (!payload) {
-      return res.status(401).json({
-        success: false,
-        message: "Invalid Google token",
-      });
+      console.log(`⚠️  Using mock authentication for dev user: ${fixedEmail}`);
+
+      req.googleUser = {
+        googleId,
+        email: fixedEmail,
+        name: fixedName,
+        profilePicture: "https://via.placeholder.com/150",
+        emailVerified: true,
+      };
+      return next();
     }
 
-    // Extract user information from Google token
-    const googleUserData = {
-      googleId: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      profilePicture: payload.picture,
-      emailVerified: payload.email_verified,
-    };
-
-    // Check if email is verified
-    if (!googleUserData.emailVerified) {
-      return res.status(401).json({
-        success: false,
-        message: "Email not verified with Google",
+    // Production or dev with real credentials: Exchange authorization code for real tokens
+    try {
+      const { tokens } = await googleClient.getToken({
+        code,
+        redirect_uri: redirectUri || process.env.GOOGLE_REDIRECT_URI,
       });
-    }
 
-    // Store Google user data in request for next middleware
-    req.googleUser = googleUserData;
-    next();
+      console.log("✅ Authorization code exchanged successfully");
+
+      // Verify the ID token
+      const ticket = await googleClient.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+
+      const payload = ticket.getPayload();
+
+      if (!payload) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid Google token",
+        });
+      }
+
+      // Extract user information from Google token
+      const googleUserData = {
+        googleId: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        profilePicture: payload.picture,
+        emailVerified: payload.email_verified,
+      };
+
+      console.log(`✅ Google user authenticated: ${googleUserData.email}`);
+
+      // Check if email is verified
+      if (!googleUserData.emailVerified) {
+        return res.status(401).json({
+          success: false,
+          message: "Email not verified with Google",
+        });
+      }
+
+      // Store Google user data in request for next middleware
+      req.googleUser = googleUserData;
+      next();
+    } catch (googleError) {
+      console.error("❌ Google OAuth Error:", googleError.message);
+      
+      // In development, fallback to mock auth with CONSISTENT user
+      if (isDevMode) {
+        const fixedEmail = process.env.DEV_FIXED_EMAIL || "dev@medibridge.local";
+        const fixedName = process.env.DEV_FIXED_NAME || "Development User";
+        const googleId = `dev-${fixedEmail.replace(/[^a-z0-9]/gi, '')}`;
+
+        console.warn(`⚠️  Google OAuth failed, using consistent dev user: ${fixedEmail}`);
+
+        req.googleUser = {
+          googleId,
+          email: fixedEmail,
+          name: fixedName,
+          profilePicture: "https://via.placeholder.com/150",
+          emailVerified: true,
+        };
+        return next();
+      }
+      // In production, throw the error
+      throw googleError;
+    }
   } catch (error) {
-    console.error("❌ Google Auth Error:", error);
+    console.error("❌ Google Auth Error:", error.message || error);
     return res.status(401).json({
       success: false,
-      message: "Failed to authenticate with Google",
+      message:
+        process.env.NODE_ENV === "development"
+          ? `Failed to authenticate with Google: ${error.message || error}`
+          : "Failed to authenticate with Google",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
@@ -92,21 +158,33 @@ export const loginOrRegisterUser = async (req, res) => {
       });
     }
 
+    // Normalize email for consistent matching
+    const normalizedEmail = (googleUser.email || "").toLowerCase();
+    if (normalizedEmail) googleUser.email = normalizedEmail;
+
     // Check if user exists by Google ID
     let user = await db.findUserByGoogleId(googleUser.googleId);
 
     if (!user) {
-      // Check if user exists by email (for account linking)
-      user = await db.findUserByEmail(googleUser.email);
+      // Link by email
+      // In development, default to true unless explicitly set to "false"
+      const linkByEmailEnv = (process.env.AUTH_LINK_BY_EMAIL || "").toLowerCase();
+      const linkByEmail =
+        process.env.NODE_ENV === "development"
+          ? linkByEmailEnv === "true" || linkByEmailEnv === "" // default on in dev
+          : linkByEmailEnv === "true";
+      if (linkByEmail) {
+        const existingByEmail = await db.findUserByEmail(googleUser.email);
+        if (existingByEmail) {
+          await db.query(
+            "UPDATE users SET google_id = $1, email = $2, profile_picture = $3, last_login = CURRENT_TIMESTAMP WHERE id = $4",
+            [googleUser.googleId, normalizedEmail || existingByEmail.email, googleUser.profilePicture, existingByEmail.id]
+          );
+          user = await db.findUserByGoogleId(googleUser.googleId);
+        }
+      }
 
-      if (user) {
-        // Link Google account to existing user
-        await db.query(
-          "UPDATE users SET google_id = $1, profile_picture = $2, last_login = CURRENT_TIMESTAMP WHERE id = $3",
-          [googleUser.googleId, googleUser.profilePicture, user.id]
-        );
-        user = await db.findUserByGoogleId(googleUser.googleId);
-      } else {
+      if (!user) {
         // Create new user
         user = await db.createUser({
           googleId: googleUser.googleId,
@@ -148,7 +226,10 @@ export const loginOrRegisterUser = async (req, res) => {
     console.error("❌ Login/Register Error:", error);
     res.status(500).json({
       success: false,
-      message: "Internal server error during authentication",
+      message:
+        process.env.NODE_ENV === "development"
+          ? `Internal server error during authentication: ${error.message}`
+          : "Internal server error during authentication",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }

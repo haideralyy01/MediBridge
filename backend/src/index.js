@@ -9,28 +9,19 @@ import authRoutes from "./auth/routes.js";
 import healthRecordsRoutes from "./routes/healthRecords.js";
 import dashboardRoutes from "./routes/dashboard.js";
 import verificationRoutes from "./routes/verification.js";
+import doctorRoutes from "./routes/doctor.js";
+import medicationsRoutes from "./routes/medications.js";
+import testsRoutes from "./routes/tests.js";
 import "./config/database.js"; // Initialize database connection
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
-// Security middleware
-app.use(
-  helmet({
-    crossOriginEmbedderPolicy: false, // Allows embedding for development
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        scriptSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "https:"],
-      },
-    },
-  })
-);
+// Security middleware (keep simple to avoid startup issues in dev)
+app.use(helmet());
 
 // Rate limiting
 const limiter = rateLimit({
@@ -53,9 +44,21 @@ app.use("/api/auth", authLimiter);
 app.use(limiter);
 
 // Middleware
+// CORS: allow frontend dev origins
+const allowedOrigins = [
+  process.env.FRONTEND_URL || "http://localhost:8080",
+  "http://localhost:8080",
+  "http://127.0.0.1:8080",
+];
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: (origin, callback) => {
+      // Allow no-origin (mobile apps, curl) and allowed dev origins
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -91,6 +94,15 @@ app.use("/api/dashboard", dashboardRoutes);
 
 // Verification routes
 app.use("/api/verification", verificationRoutes);
+
+// Doctor routes
+app.use("/api/doctor", doctorRoutes);
+
+// Medications routes
+app.use("/api/medications", medicationsRoutes);
+
+// Tests routes
+app.use("/api/tests", testsRoutes);
 
 // Basic route
 app.get("/", (req, res) => {
@@ -154,6 +166,22 @@ app.get("/api", (req, res) => {
         history: "GET /api/verification/history/:recordId",
         stats: "GET /api/verification/stats",
       },
+      medications: {
+        list: "GET /api/medications",
+        create: "POST /api/medications",
+        update: "PUT /api/medications/:id",
+        delete: "DELETE /api/medications/:id",
+      },
+      tests: {
+        list: "GET /api/tests",
+        create: "POST /api/tests",
+        update: "PUT /api/tests/:id",
+        delete: "DELETE /api/tests/:id",
+      },
+      doctor: {
+        profile: "GET /api/doctor/profile",
+        createProfile: "POST /api/doctor/profile",
+      },
     },
   });
 });
@@ -178,11 +206,24 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📍 Local: http://localhost:${PORT}`);
-  console.log(`🏥 MediBridge Backend API started successfully`);
+// Global error handlers for better diagnostics
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled Rejection:", reason);
 });
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught Exception:", err);
+});
+
+// Start server
+try {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📍 Local: http://localhost:${PORT}`);
+    console.log(`🏥 MediBridge Backend API started successfully`);
+  });
+} catch (err) {
+  console.error("❌ Failed to start server:", err);
+  process.exit(1);
+}
 
 export default app;
