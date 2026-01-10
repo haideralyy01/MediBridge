@@ -39,9 +39,10 @@ router.get("/verify", authenticateToken, (req, res) => {
     authenticated: true,
     user: {
       id: req.user.id,
+      googleId: req.user.google_id,
       email: req.user.email,
       name: req.user.name,
-      googleId: req.user.google_id,
+      role: req.user.role || 'patient',
     },
   });
 });

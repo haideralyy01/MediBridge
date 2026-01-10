@@ -72,6 +72,7 @@ model Doctor {
 model HealthRecord {
   id                 Int       @id @default(autoincrement())
   userId             Int?      @map("user_id")
+  patientId          String?   @map("patient_id") @db.VarChar(100)
   recordType         String    @default("general") @map("record_type") @db.VarChar(100)
   title              String    @default("Untitled") @db.VarChar(255)
   description        String?
@@ -111,6 +112,7 @@ model HealthRecord {
   verificationLogs  VerificationLog[]
 
   @@index([userId], map: "idx_health_records_user_id")
+  @@index([patientId], map: "idx_health_records_patient_id")
   @@index([recordType], map: "idx_health_records_type")
   @@index([status], map: "idx_health_records_status")
   @@index([icd11Code], map: "idx_health_records_icd11")
@@ -123,6 +125,7 @@ model HealthRecord {
 model Medicine {
   id             Int       @id @default(autoincrement())
   userId         Int?      @map("user_id")
+  patientId      String?   @map("patient_id") @db.VarChar(100)
   medicineName   String    @map("medicine_name") @db.VarChar(255)
   medicationName String    @default("Unknown") @map("medication_name") @db.VarChar(255)
   dosage         String?   @db.VarChar(100)
@@ -138,6 +141,7 @@ model Medicine {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId], map: "idx_medicines_user_id")
+  @@index([patientId], map: "idx_medicines_patient_id")
   @@index([status], map: "idx_medicines_status")
   @@map("medicines")
 }
@@ -148,6 +152,7 @@ model Medicine {
 model TestRecord {
   id           Int       @id @default(autoincrement())
   userId       Int?      @map("user_id")
+  patientId    String?   @map("patient_id") @db.VarChar(100)
   doctorId     Int?      @map("doctor_id")
   testName     String    @map("test_name") @db.VarChar(255)
   testType     String?   @map("test_type") @db.VarChar(100)
@@ -166,6 +171,7 @@ model TestRecord {
   doctor User? @relation("TestRecordDoctor", fields: [doctorId], references: [id], onDelete: NoAction)
 
   @@index([userId], map: "idx_test_records_user_id")
+  @@index([patientId], map: "idx_test_records_patient_id")
   @@index([status], map: "idx_test_records_status")
   @@map("test_records")
 }

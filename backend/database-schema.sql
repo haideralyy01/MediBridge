@@ -35,6 +35,7 @@ COMMENT ON TABLE users IS 'Core user information for patients, doctors, and hosp
 CREATE TABLE IF NOT EXISTS health_records (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  patient_id VARCHAR(100),
   record_type VARCHAR(100) NOT NULL,
   title VARCHAR(255) NOT NULL,
   description TEXT,
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS health_records (
 
 -- Indexes for health_records table
 CREATE INDEX IF NOT EXISTS idx_health_records_user_id ON health_records(user_id);
+CREATE INDEX IF NOT EXISTS idx_health_records_patient_id ON health_records(patient_id);
 CREATE INDEX IF NOT EXISTS idx_health_records_type ON health_records(record_type);
 CREATE INDEX IF NOT EXISTS idx_health_records_icd11 ON health_records(icd11_code);
 CREATE INDEX IF NOT EXISTS idx_health_records_status ON health_records(status);
@@ -94,6 +96,7 @@ COMMENT ON TABLE medical_history IS 'Historical record of patient medical condit
 CREATE TABLE IF NOT EXISTS medications (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  patient_id VARCHAR(100),
   medication_name VARCHAR(255) NOT NULL,
   dosage VARCHAR(100),
   frequency VARCHAR(100),
@@ -107,6 +110,7 @@ CREATE TABLE IF NOT EXISTS medications (
 
 -- Indexes for medications table
 CREATE INDEX IF NOT EXISTS idx_medications_user_id ON medications(user_id);
+CREATE INDEX IF NOT EXISTS idx_medications_patient_id ON medications(patient_id);
 CREATE INDEX IF NOT EXISTS idx_medications_status ON medications(status);
 
 COMMENT ON TABLE medications IS 'Current and historical medication information for patients';
@@ -138,6 +142,8 @@ COMMENT ON TABLE verification_logs IS 'Audit trail for health record verificatio
 CREATE TABLE IF NOT EXISTS analytics (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  patient_id VARCHAR(100),
+  CREATE INDEX IF NOT EXISTS idx_test_records_patient_id ON test_records(patient_id);
   metric_type VARCHAR(100) NOT NULL,
   metric_value JSONB NOT NULL,
   date_recorded DATE DEFAULT CURRENT_DATE,

@@ -333,7 +333,6 @@ Retrieve user's health records with pagination and filtering
       "icd11Title": "General medical examination",
       "diagnosis": "Healthy individual",
       "symptoms": ["routine checkup"],
-      "namasteName": "वार्षिक स्वास्थ्य जांच",
       "doctorName": "Dr. Smith",
       "hospitalName": "City Hospital",
       "visitDate": "2024-01-15",

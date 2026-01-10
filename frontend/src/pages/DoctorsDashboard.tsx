@@ -74,7 +74,6 @@ interface HealthRecord {
   icd11_title?: string;
   diagnosis?: string;
   symptoms?: string[];
-  namaste_name?: string;
   doctor_name?: string;
   hospital_name?: string;
   visit_date?: string;
@@ -146,6 +145,7 @@ const Dashboard = () => {
     fetchDashboardData();
     loadPrescribedMedicines();
     loadPrescribedTests();
+    loadDoctorProfile();
 
     // Get user email from localStorage if available, but hide dev placeholders
     const userData = localStorage.getItem("user_data");
@@ -157,21 +157,6 @@ const Dashboard = () => {
       } catch (error) {
         console.error("Error parsing user data:", error);
       }
-    }
-
-    // Check doctor profile completion
-    const storedProfile = userStorage.getItem("doctor_profile");
-    if (storedProfile) {
-      try {
-        const profile = JSON.parse(storedProfile);
-        setDoctorProfile(profile);
-        setShowProfileReminder(!profile.profileCompleted);
-      } catch (error) {
-        console.error("Error parsing doctor profile:", error);
-        setShowProfileReminder(true);
-      }
-    } else {
-      setShowProfileReminder(true);
     }
 
     // Listen for storage changes (when health records are updated)
@@ -202,27 +187,31 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch health records from API first
+      // ALWAYS fetch fresh health records from API - don't use cache first
       let healthRecords: HealthRecord[] = [];
-      try {
-        const token = localStorage.getItem("auth_token");
-        const resp = await fetch("/api/health-records", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          healthRecords = data.data as HealthRecord[];
-          userStorage.setJSON("health_records", healthRecords);
+      const token = localStorage.getItem("auth_token");
+      
+      if (token) {
+        try {
+          const resp = await fetch("/api/health-records", {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            healthRecords = data.data as HealthRecord[];
+            // Update cache with fresh data from database
+            userStorage.setJSON("health_records", healthRecords);
+          }
+        } catch (apiError) {
+          console.warn("API fetch failed, falling back to cache:", apiError);
         }
-      } catch (_) {
-        // ignore and fall back to cache
       }
 
+      // Only fall back to cache if API failed
       if (healthRecords.length === 0) {
-        // Fall back to cached local storage if API unavailable
         const storedRecords = userStorage.getItem("health_records");
         if (storedRecords) {
           try {
@@ -300,6 +289,54 @@ const Dashboard = () => {
       setAllRecords([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load doctor profile from API first, fallback to cache
+  const loadDoctorProfile = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      if (token) {
+        const response = await fetch("/api/doctor/profile", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.profile) {
+            const profile = {
+              ...data.profile,
+              profileCompleted: true,
+            };
+            setDoctorProfile(profile);
+            setShowProfileReminder(false);
+            // Update cache with fresh data
+            userStorage.setJSON("doctor_profile", profile);
+            return;
+          }
+        }
+      }
+
+      // Fallback to cached localStorage
+      const storedProfile = userStorage.getItem("doctor_profile");
+      if (storedProfile) {
+        try {
+          const profile = JSON.parse(storedProfile);
+          setDoctorProfile(profile);
+          setShowProfileReminder(!profile.profileCompleted);
+        } catch (error) {
+          console.error("Error parsing doctor profile:", error);
+          setShowProfileReminder(true);
+        }
+      } else {
+        setShowProfileReminder(true);
+      }
+    } catch (error) {
+      console.error("Error loading doctor profile:", error);
+      setShowProfileReminder(true);
     }
   };
 
@@ -710,7 +747,7 @@ const Dashboard = () => {
         "ICD-11 Title": record.icd11_title || "",
         Diagnosis: record.diagnosis || "",
         Symptoms: record.symptoms ? record.symptoms.join(", ") : "",
-        "Hindi Name": record.namaste_name || "",
+        // "Hindi Name" removed
         "Doctor Name": record.doctor_name || "",
         "Hospital Name": record.hospital_name || "",
         "Visit Date": record.visit_date || "",
@@ -1083,7 +1120,7 @@ const Dashboard = () => {
                             icd11_title: "Primary headache disorders",
                             diagnosis: "Tension-type headache",
                             symptoms: ["headache", "stress"],
-                            namaste_name: "स्वास्थ्य रिकॉर्ड (Health Record)",
+                            // namaste_name removed
                             doctor_name: "Dr. Sample Physician",
                             hospital_name: "Sample Medical Center",
                             visit_date: new Date().toISOString().split("T")[0],

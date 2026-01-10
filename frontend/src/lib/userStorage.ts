@@ -56,4 +56,18 @@ export const userStorage = {
       try { localStorage.removeItem(k); } catch { /* noop */ }
     });
   },
+  // Clear ALL cached data for the current user
+  clearAllUserData(): void {
+    const uid = getCurrentUserId();
+    if (!uid) return;
+    
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.endsWith(`:${uid}`)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+  },
 };

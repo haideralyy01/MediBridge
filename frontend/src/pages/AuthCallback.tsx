@@ -17,10 +17,16 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get("code");
         const state = urlParams.get("state");
         const error = urlParams.get("error");
+
+        // Debug: Log the state from URL and sessionStorage
+        const storedState = sessionStorage.getItem("oauth_state");
+        console.log("🔑 [AuthCallback] URL state:", state);
+        console.log("🔑 [AuthCallback] sessionStorage oauth_state:", storedState);
 
         // Check for OAuth errors
         if (error) {
@@ -29,13 +35,14 @@ const AuthCallback = () => {
           return;
         }
 
+
         // Validate state parameter
-        const storedState = sessionStorage.getItem("oauth_state");
         if (
           !state ||
           !storedState ||
           !state.startsWith(storedState.split("_")[0])
         ) {
+          console.error("❌ [AuthCallback] State mismatch! URL state:", state, "Stored state:", storedState);
           setStatus("error");
           setMessage("Invalid state parameter. Possible CSRF attack.");
           return;
@@ -68,10 +75,29 @@ const AuthCallback = () => {
 
             const data = await response.json();
             console.log("✅ User authenticated and saved to database:", data.user);
+            console.log("📌 User ID:", data.user.id, "Google ID:", data.user.googleId);
 
-            // Store authentication data
-            // First, clean old global keys to avoid cross-user leakage in dev
+            // IMPORTANT: Clear ALL old cached data before storing new user data
+            // This prevents pre-filled data from old sessions showing up
             userStorage.removeLegacyGlobals();
+            userStorage.clearAllUserData();
+            
+            // Clear any remaining namespaced keys from previous users
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i);
+              if (key && (
+                key.startsWith("health_records") ||
+                key.startsWith("prescribed_medicines") ||
+                key.startsWith("prescribed_tests") ||
+                key.startsWith("doctor_profile")
+              )) {
+                keysToRemove.push(key);
+              }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+
+            // Store fresh authentication data from database
             localStorage.setItem("auth_token", data.accessToken);
             // Sanitize dev placeholder identity to prevent UI bleed-through
             const sanitizedUser = {
@@ -81,15 +107,26 @@ const AuthCallback = () => {
             };
             localStorage.setItem("user_data", JSON.stringify(sanitizedUser));
             localStorage.setItem("user_id", data.user.id.toString());
+            // Store Google ID for reference
+            if (data.user.googleId) {
+              localStorage.setItem("google_id", data.user.googleId);
+            }
 
             // Get role from sessionStorage
             const loginRole = sessionStorage.getItem("login_role") || "doctor";
             localStorage.setItem("user_role", loginRole);
 
-            // Store patient ID if patient is logging in
+
+            // Store patient ID if patient is logging in, or redirect to setup if missing
             const patientId = sessionStorage.getItem("patient_id");
-            if (loginRole === "patient" && patientId) {
-              localStorage.setItem("patient_id", patientId);
+            if (loginRole === "patient") {
+              if (patientId) {
+                localStorage.setItem("patient_id", patientId);
+              } else {
+                // Redirect to patient ID setup page
+                setTimeout(() => navigate("/patient-id-setup"), 800);
+                return;
+              }
             }
 
             setStatus("success");

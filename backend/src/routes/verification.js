@@ -35,34 +35,6 @@ const searchICD11 = async (searchTerm) => {
   }
 };
 
-// Namaste TM2 verification simulation
-const verifyWithNamasteTM2 = async (recordData) => {
-  try {
-    // This would integrate with actual Namaste TM2 API
-    // For now, simulate verification process
-    const verificationResult = {
-      verified: Math.random() > 0.3, // 70% success rate simulation
-      confidence: Math.random() * 100,
-      timestamp: new Date().toISOString(),
-      verificationId: `TM2_${Date.now()}`,
-      details: {
-        documentIntegrity: Math.random() > 0.2,
-        medicalTerminology: Math.random() > 0.1,
-        providerCredentials: Math.random() > 0.15,
-        dataConsistency: Math.random() > 0.25,
-      },
-    };
-
-    return verificationResult;
-  } catch (error) {
-    console.error("Namaste TM2 Verification Error:", error);
-    return {
-      verified: false,
-      confidence: 0,
-      error: "Verification service unavailable",
-    };
-  }
-};
 
 // Search ICD-11 codes
 router.get("/icd11/search", authenticateToken, async (req, res) => {
@@ -125,82 +97,12 @@ router.get("/icd11/:code", authenticateToken, async (req, res) => {
   }
 });
 
-// Verify health record with Namaste TM2
+// Remove Namaste TM2 verification logic. Verification endpoint is now disabled or should be replaced with your own logic.
 router.post("/verify/:recordId", authenticateToken, async (req, res) => {
-  try {
-    const { recordId } = req.params;
-    const { verificationType = "full" } = req.body;
-
-    // Get the health record
-    const record = await db.getHealthRecordById(recordId, req.user.id);
-
-    if (!record) {
-      return res.status(404).json({
-        success: false,
-        message: "Health record not found",
-      });
-    }
-
-    // Check if already verified
-    if (record.verification_status === "verified") {
-      return res.status(400).json({
-        success: false,
-        message: "Record is already verified",
-      });
-    }
-
-    // Perform verification with Namaste TM2
-    const verificationResult = await verifyWithNamasteTM2({
-      recordId: record.id,
-      title: record.title,
-      diagnosis: record.diagnosis,
-      icd11Code: record.icd11_code,
-      doctorName: record.doctor_name,
-      hospitalName: record.hospital_name,
-      verificationType,
-    });
-
-    // Update record verification status
-    const verificationStatus = verificationResult.verified
-      ? "verified"
-      : "failed";
-    await db.updateHealthRecord(recordId, req.user.id, {
-      verification_status: verificationStatus,
-      verification_data: verificationResult,
-    });
-
-    // Create verification log
-    await db.createVerificationLog({
-      recordId: record.id,
-      verificationType: `namaste_tm2_${verificationType}`,
-      status: verificationStatus,
-      verificationData: verificationResult,
-      verifiedBy: "Namaste TM2 System",
-      notes: `Automatic verification with confidence: ${verificationResult.confidence?.toFixed(
-        2
-      )}%`,
-    });
-
-    res.json({
-      success: true,
-      message: `Verification ${
-        verificationResult.verified ? "successful" : "failed"
-      }`,
-      data: {
-        recordId: record.id,
-        verificationStatus,
-        verificationResult,
-        timestamp: new Date().toISOString(),
-      },
-    });
-  } catch (error) {
-    console.error("❌ Record Verification Error:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to verify health record",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
-    });
-  }
+  res.status(501).json({
+    success: false,
+    message: "Verification logic removed. Implement your own verification here.",
+  });
 });
 
 // Get verification history for a record
@@ -288,38 +190,11 @@ router.post("/verify-batch", authenticateToken, async (req, res) => {
           continue;
         }
 
-        const verificationResult = await verifyWithNamasteTM2({
-          recordId: record.id,
-          title: record.title,
-          diagnosis: record.diagnosis,
-          verificationType,
-        });
-
-        const verificationStatus = verificationResult.verified
-          ? "verified"
-          : "failed";
-        await db.updateHealthRecord(recordId, req.user.id, {
-          verification_status: verificationStatus,
-          verification_data: verificationResult,
-        });
-
-        await db.createVerificationLog({
-          recordId: record.id,
-          verificationType: `namaste_tm2_${verificationType}`,
-          status: verificationStatus,
-          verificationData: verificationResult,
-          verifiedBy: "Namaste TM2 System (Batch)",
-          notes: `Batch verification with confidence: ${verificationResult.confidence?.toFixed(
-            2
-          )}%`,
-        });
-
+        // Namaste TM2 logic removed from batch verification. Implement your own logic here if needed.
         results.push({
           recordId,
-          success: true,
-          status: verificationStatus,
-          confidence: verificationResult.confidence,
-          verified: verificationResult.verified,
+          success: false,
+          message: "Verification logic removed. Implement your own verification here.",
         });
       } catch (error) {
         results.push({

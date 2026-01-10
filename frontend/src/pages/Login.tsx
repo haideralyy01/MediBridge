@@ -66,6 +66,8 @@ const Login = () => {
 
     // Store state for security validation
     sessionStorage.setItem("oauth_state", state);
+    // Debug: Log the state value being set
+    console.log("🔑 [Login] Generated and stored oauth_state:", state);
 
     const authUrl =
       `https://accounts.google.com/o/oauth2/v2/auth?` +

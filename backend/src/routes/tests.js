@@ -7,7 +7,12 @@ const router = express.Router();
 // List tests for authenticated user
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const tests = await db.getTestRecordsByUserId(req.user.id);
+    let tests;
+    if (req.query.patientId) {
+      tests = await db.getTestRecordsByPatientId(req.query.patientId);
+    } else {
+      tests = await db.getTestRecordsByUserId(req.user.id);
+    }
     res.json({ success: true, data: tests });
   } catch (error) {
     console.error("❌ Get Tests Error:", error);
@@ -24,8 +29,10 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Test name and type are required" });
     }
 
+    const patientId = req.body.patientId || req.body.patient_id || null;
     const test = await db.createTestRecord({
       userId: req.user.id,
+      patientId,
       testName,
       testType,
       frequency,

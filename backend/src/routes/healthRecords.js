@@ -23,57 +23,64 @@ router.get(
       const { page = 1, limit = 10, type, status } = req.query;
       const offset = (page - 1) * limit;
 
-      let query = `
-      SELECT hr.*, u.name as user_name 
-      FROM health_records hr 
-      JOIN users u ON hr.user_id = u.id 
-      WHERE hr.user_id = $1
-    `;
-      const params = [req.user.id];
-      let paramCount = 2;
+      // Support filtering by patientId if provided in query
+      let records;
+      if (req.query.patientId) {
+        records = await db.getHealthRecordsByPatientId(req.query.patientId, limit, offset);
+      } else {
+        let query = `
+        SELECT hr.*, u.name as user_name 
+        FROM health_records hr 
+        JOIN users u ON hr.user_id = u.id 
+        WHERE hr.user_id = $1
+      `;
+        const params = [req.user.id];
+        let paramCount = 2;
 
-      // Add filters
-      if (type) {
-        query += ` AND hr.record_type = $${paramCount}`;
-        params.push(type);
-        paramCount++;
+        // Add filters
+        if (type) {
+          query += ` AND hr.record_type = $${paramCount}`;
+          params.push(type);
+          paramCount++;
+        }
+
+        if (status) {
+          query += ` AND hr.status = $${paramCount}`;
+          params.push(status);
+          paramCount++;
+        }
+
+        query += ` ORDER BY hr.created_at DESC LIMIT $${paramCount} OFFSET $${
+          paramCount + 1
+        }`;
+        params.push(limit, offset);
+
+        const result = await db.query(query, params);
+
+        // Filter data based on user role
+        records = filterDataByRole(
+          result.rows,
+          req.user.role,
+          req.user.id
+        );
       }
-
-      if (status) {
-        query += ` AND hr.status = $${paramCount}`;
-        params.push(status);
-        paramCount++;
-      }
-
-      query += ` ORDER BY hr.created_at DESC LIMIT $${paramCount} OFFSET $${
-        paramCount + 1
-      }`;
-      params.push(limit, offset);
-
-      const result = await db.query(query, params);
-
-      // Filter data based on user role
-      const filteredData = filterDataByRole(
-        result.rows,
-        req.user.role,
-        req.user.id
-      );
 
       // Get total count for pagination
-      let countQuery = "SELECT COUNT(*) FROM health_records WHERE user_id = $1";
-      const countParams = [req.user.id];
-
-      if (type) {
-        countQuery += " AND record_type = $2";
-        countParams.push(type);
+      let totalRecords = records.length;
+      // If not using patientId, get actual count from DB for pagination
+      if (!req.query.patientId) {
+        let countQuery = "SELECT COUNT(*) FROM health_records WHERE user_id = $1";
+        const countParams = [req.user.id];
+        if (type) {
+          countQuery += " AND record_type = $2";
+          countParams.push(type);
+        }
+        const countResult = await db.query(countQuery, countParams);
+        totalRecords = parseInt(countResult.rows[0].count);
       }
-
-      const countResult = await db.query(countQuery, countParams);
-      const totalRecords = parseInt(countResult.rows[0].count);
-
       res.json({
         success: true,
-        data: filteredData,
+        data: records,
         pagination: {
           currentPage: parseInt(page),
           totalPages: Math.ceil(totalRecords / limit),
@@ -95,18 +102,22 @@ router.get(
 );
 
 // Get specific health record by ID
+// Get specific health record by ID (by user or patientId)
 router.get("/:id", authenticateToken, async (req, res) => {
   try {
     const recordId = req.params.id;
-    const record = await db.getHealthRecordById(recordId, req.user.id);
-
+    let record;
+    if (req.query.patientId) {
+      record = await db.getHealthRecordByPatientId(recordId, req.query.patientId);
+    } else {
+      record = await db.getHealthRecordById(recordId, req.user.id);
+    }
     if (!record) {
       return res.status(404).json({
         success: false,
         message: "Health record not found",
       });
     }
-
     res.json({
       success: true,
       data: record,
@@ -139,6 +150,7 @@ router.post("/", authenticateToken, async (req, res) => {
       hospitalName,
       visitDate,
       severity,
+      patientId,
     } = req.body;
 
     // Validation
@@ -151,6 +163,7 @@ router.post("/", authenticateToken, async (req, res) => {
 
     const recordData = {
       userId: req.user.id,
+      patientId,
       recordType,
       title,
       description,

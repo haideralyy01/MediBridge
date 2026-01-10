@@ -48,6 +48,7 @@ import {
 import { DiseaseAutocomplete } from "@/components/DiseaseAutocomplete";
 import Logo from "@/components/Logo";
 import { userStorage } from "@/lib/userStorage";
+import { getCurrentUser } from "@/services/authService";
 import {
   Plus,
   FileText,
@@ -77,7 +78,6 @@ interface HealthRecord {
   icd11_title?: string;
   diagnosis?: string;
   symptoms?: string[];
-  namaste_name?: string;
   doctor_name?: string;
   hospital_name?: string;
   visit_date?: string;
@@ -100,8 +100,8 @@ interface NewRecordForm {
   hospitalName: string;
   visitDate: string;
   severity: string;
-  namasteName: string;
   patientId: string;
+  age: string;
 }
 
 const HealthRecords = () => {
@@ -112,20 +112,25 @@ const HealthRecords = () => {
   const [filterType, setFilterType] = useState("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<NewRecordForm>({
-    recordType: "",
-    title: "",
-    description: "",
-    icd11Code: "",
-    icd11Title: "",
-    diagnosis: "",
-    namasteName: "",
-    symptoms: "",
-    doctorName: "",
-    hospitalName: "",
-    visitDate: "",
-    severity: "mild",
-    patientId: "",
+  const [formData, setFormData] = useState<NewRecordForm>(() => {
+    // Prefill doctor name from user_data if available
+    const user = getCurrentUser();
+    return {
+      recordType: "",
+      title: "",
+      description: "",
+      icd11Code: "",
+      icd11Title: "",
+      diagnosis: "",
+      // namasteName removed
+      symptoms: "",
+      doctorName: user && user.name ? user.name : "",
+      hospitalName: "",
+      visitDate: "",
+      severity: "mild",
+      patientId: "",
+      age: "",
+    };
   });
 
   // Medicine and Test Prescription States
@@ -154,49 +159,36 @@ const HealthRecords = () => {
 
   const fetchHealthRecords = async () => {
     try {
-      // API-first: fetch from backend for persistence
       const token = localStorage.getItem("auth_token");
-      const response = await fetch("/api/health-records", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRecords(data.data);
-        // Cache for offline reads
-        userStorage.setJSON("health_records", data.data);
-        return;
-      }
-
-      // Fallback to cached localStorage if API not available
-      const storedRecords = userStorage.getItem("health_records");
-      if (storedRecords) {
+      const patientId = localStorage.getItem("patient_id");
+      let fetchedRecords = [];
+      if (token && patientId) {
         try {
-          const parsedRecords = JSON.parse(storedRecords);
-          setRecords(parsedRecords);
-          return;
-        } catch (error) {
-          console.error("Error parsing stored health records:", error);
+          const response = await fetch(
+            `/api/health-records?patient_id=${encodeURIComponent(patientId)}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          if (response.ok) {
+            const data = await response.json();
+            fetchedRecords = data.data || [];
+            userStorage.setJSON(`health_records:${patientId}`, fetchedRecords);
+          }
+        } catch (err) {
+          // Ignore API error, fallback to cache
         }
       }
-
-      setRecords([]);
+      if (!fetchedRecords.length && patientId) {
+        fetchedRecords = userStorage.getJSON(`health_records:${patientId}`, []);
+      }
+      setRecords(fetchedRecords);
     } catch (error) {
       console.error("Failed to fetch health records:", error);
-      // Fallback to local cache
-      const storedRecords = userStorage.getItem("health_records");
-      if (storedRecords) {
-        try {
-          setRecords(JSON.parse(storedRecords));
-        } catch (_) {
-          setRecords([]);
-        }
-      } else {
-        setRecords([]);
-      }
+      setRecords([]);
     } finally {
       setLoading(false);
     }
@@ -213,7 +205,7 @@ const HealthRecords = () => {
       icd11_title: "Primary headache disorders",
       diagnosis: "Tension-type headache",
       symptoms: ["headache", "stress"],
-      namaste_name: "स्वास्थ्य रिकॉर्ड (Health Record)",
+      // namaste_name removed
       doctor_name: "Dr. Sample Physician",
       hospital_name: "Sample Medical Center",
       visit_date: new Date().toISOString().split("T")[0],
@@ -319,6 +311,8 @@ const HealthRecords = () => {
       // Reset form and close dialog
       setIsDialogOpen(false);
       setEditingRecordId(null);
+      // Prefill doctor name again on reset
+      const user = getCurrentUser();
       setFormData({
         recordType: "",
         title: "",
@@ -328,11 +322,12 @@ const HealthRecords = () => {
         diagnosis: "",
         symptoms: "",
         namasteName: "",
-        doctorName: "",
+        doctorName: user && user.name ? user.name : "",
         hospitalName: "",
         visitDate: "",
         severity: "mild",
         patientId: "",
+        age: "",
       });
     } catch (error: any) {
       console.error("Failed to save health record:", error);
@@ -426,6 +421,7 @@ const HealthRecords = () => {
       visitDate: record.visit_date || "",
       severity: record.severity,
       patientId: record.patient_id || "",
+      age: record.age || "",
     });
 
     // Store the record ID for editing
@@ -908,6 +904,22 @@ const HealthRecords = () => {
                     placeholder="Enter patient's ID"
                     className="h-10 sm:h-11"
                     required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="age" className="text-sm font-medium">
+                    Age
+                  </Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    value={formData.age}
+                    onChange={(e) =>
+                      setFormData({ ...formData, age: e.target.value })
+                    }
+                    placeholder="Enter patient's age"
+                    className="h-10 sm:h-11"
+                    min="0"
                   />
                 </div>
 

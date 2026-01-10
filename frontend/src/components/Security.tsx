@@ -102,7 +102,7 @@ const Security = () => {
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-foreground text-sm sm:text-base">
-                        Namaste TM2 Verification
+                        {/* Namaste TM2 Verification removed */}
                       </h3>
                       <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                         Advanced verification checks document authenticity

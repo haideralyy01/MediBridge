@@ -83,6 +83,24 @@ interface Reminder {
   frequency: "once" | "daily" | "weekly" | "monthly";
 }
 
+interface Medication {
+  id: number;
+  name: string;
+  dosage: string;
+  instructions?: string;
+  startDate?: string;
+  endDate?: string;
+  frequency?: string;
+}
+
+interface TestRecord {
+  id: number;
+  testName: string;
+  result: string;
+  date: string;
+  status?: string;
+}
+
 const PatientsDashboard = () => {
   const navigate = useNavigate();
   const [patientName, setPatientName] = useState("");
@@ -91,6 +109,8 @@ const PatientsDashboard = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [labReports, setLabReports] = useState<LabReport[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [medications, setMedications] = useState<Medication[]>([]);
+  const [testRecords, setTestRecords] = useState<TestRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Dialog states
@@ -133,28 +153,95 @@ const PatientsDashboard = () => {
         setPatientId(patientIdStored);
       }
 
-      // Load health records for this patient
-      const healthRecordsStored = localStorage.getItem("health_records");
-      if (healthRecordsStored) {
-        const records = JSON.parse(healthRecordsStored);
-        // Filter records by patient ID and convert to diagnosed records format
-        const diagnosedRecords = records
-          .filter((record: any) => record.patient_id === patientIdStored)
-          .map((record: any) => ({
-            id: record.id,
-            title: record.title,
-            diagnosis: record.diagnosis || "N/A",
-            icd11Code: record.icd11_code,
-            doctorName: record.doctor_name || "Unknown",
-            hospitalName: record.hospital_name || "Unknown",
-            visitDate: record.visit_date || new Date().toISOString().split("T")[0],
-            severity: record.severity || "mild",
-          }));
-        setDiagnoses(diagnosedRecords);
+      const token = localStorage.getItem("auth_token");
 
-        // Load or create suggestions based on diagnoses
+      // Fetch health records
+      let records: any[] = [];
+      if (token && patientIdStored) {
+        try {
+          const response = await fetch(`/api/health-records?patient_id=${encodeURIComponent(patientIdStored)}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            records = data.data || [];
+            localStorage.setItem(`health_records:${patientIdStored}`, JSON.stringify(records));
+          }
+        } catch (err) {}
+      }
+      if (!records.length && patientIdStored) {
+        const healthRecordsStored = localStorage.getItem(`health_records:${patientIdStored}`);
+        if (healthRecordsStored) {
+          records = JSON.parse(healthRecordsStored);
+        }
+      }
+      if (records.length) {
+        const diagnosedRecords = records.map((record: any) => ({
+          id: record.id,
+          title: record.title,
+          diagnosis: record.diagnosis || "N/A",
+          icd11Code: record.icd11_code,
+          doctorName: record.doctor_name || "Unknown",
+          hospitalName: record.hospital_name || "Unknown",
+          visitDate: record.visit_date || new Date().toISOString().split("T")[0],
+          severity: record.severity || "mild",
+        }));
+        setDiagnoses(diagnosedRecords);
         loadSuggestions(diagnosedRecords);
       }
+
+      // Fetch medications
+      let meds: any[] = [];
+      if (token && patientIdStored) {
+        try {
+          const response = await fetch(`/api/medications?patient_id=${encodeURIComponent(patientIdStored)}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            meds = data.data || [];
+            localStorage.setItem(`medications:${patientIdStored}`, JSON.stringify(meds));
+          }
+        } catch (err) {}
+      }
+      if (!meds.length && patientIdStored) {
+        const medsStored = localStorage.getItem(`medications:${patientIdStored}`);
+        if (medsStored) {
+          meds = JSON.parse(medsStored);
+        }
+      }
+      setMedications(meds);
+
+      // Fetch test records
+      let tests: any[] = [];
+      if (token && patientIdStored) {
+        try {
+          const response = await fetch(`/api/tests?patient_id=${encodeURIComponent(patientIdStored)}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+          if (response.ok) {
+            const data = await response.json();
+            tests = data.data || [];
+            localStorage.setItem(`test_records:${patientIdStored}`, JSON.stringify(tests));
+          }
+        } catch (err) {}
+      }
+      if (!tests.length && patientIdStored) {
+        const testsStored = localStorage.getItem(`test_records:${patientIdStored}`);
+        if (testsStored) {
+          tests = JSON.parse(testsStored);
+        }
+      }
+      setTestRecords(tests);
 
       // Load stored reminders
       const remindersStored = localStorage.getItem("patient_reminders");
@@ -483,6 +570,73 @@ const PatientsDashboard = () => {
               </Card>
             )}
           </div>
+        </section>
+
+        {/* Medications Section */}
+        <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150">
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold text-foreground mb-2">💊 Medications</h2>
+            <p className="text-sm text-muted-foreground">Your prescribed medications</p>
+          </div>
+          {medications.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {medications.map((med) => (
+                <Card key={med.id} className="border-govt-green/30 bg-govt-green/5">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg flex items-center space-x-2">
+                      <Pill className="w-5 h-5 text-govt-green" />
+                      <span>{med.name}</span>
+                    </CardTitle>
+                    <CardDescription>
+                      {med.dosage} {med.frequency ? `| ${med.frequency}` : ""}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {med.instructions && <div className="text-sm">{med.instructions}</div>}
+                    {med.startDate && <div className="text-xs text-muted-foreground">Start: {med.startDate}</div>}
+                    {med.endDate && <div className="text-xs text-muted-foreground">End: {med.endDate}</div>}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="bg-secondary/50">
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <Pill className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No medications found for your Patient ID.</p>
+              </CardContent>
+            </Card>
+          )}
+        </section>
+
+        {/* Test Records Section */}
+        <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-175">
+          <div className="mb-4">
+            <h2 className="text-2xl font-bold text-foreground mb-2">🧪 Test Records</h2>
+            <p className="text-sm text-muted-foreground">Your lab and diagnostic test results</p>
+          </div>
+          {testRecords.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {testRecords.map((test) => (
+                <Card key={test.id} className="border-govt-blue/30 bg-govt-blue/5">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-lg">{test.testName}</CardTitle>
+                    <CardDescription>{test.date} {test.status ? `| ${test.status}` : ""}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="text-sm">{test.result}</div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="bg-secondary/50">
+              <CardContent className="pt-6 text-center text-muted-foreground">
+                <FileText className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No test records found for your Patient ID.</p>
+              </CardContent>
+            </Card>
+          )}
         </section>
 
         {/* Lab Reports Section */}

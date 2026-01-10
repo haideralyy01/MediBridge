@@ -8,24 +8,28 @@ const router = express.Router();
 router.get("/profile", authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    
+    // Get doctor profile
     const query = `
       SELECT d.*, u.name as user_name, u.email 
       FROM doctors d 
       JOIN users u ON d.user_id = u.id 
       WHERE d.user_id = $1
     `;
-    
     const result = await db.query(query, [userId]);
-    
     if (result.rows.length === 0) {
       return res.status(404).json({
         success: false,
         message: "Doctor profile not found"
       });
     }
-
     const doctor = result.rows[0];
+    // Fetch all health records for this doctor (by patientId = doctor.user_id)
+    let healthRecords = [];
+    try {
+      healthRecords = await db.getHealthRecordsByPatientId(userId, 100, 0);
+    } catch (err) {
+      console.error("❌ Error fetching health records for doctor profile:", err);
+    }
     res.status(200).json({
       success: true,
       profile: {
@@ -41,7 +45,8 @@ router.get("/profile", authenticateToken, async (req, res) => {
         hospital: doctor.hospital,
         yearsOfExperience: doctor.years_of_experience,
         createdAt: doctor.created_at,
-        updatedAt: doctor.updated_at
+        updatedAt: doctor.updated_at,
+        healthRecords
       }
     });
   } catch (error) {

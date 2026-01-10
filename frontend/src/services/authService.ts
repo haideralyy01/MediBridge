@@ -4,13 +4,25 @@ export const clearUserData = () => {
   // Clear all user-specific data from localStorage
   localStorage.removeItem("auth_token");
   localStorage.removeItem("user_data");
+  localStorage.removeItem("user_id");
+  localStorage.removeItem("user_role");
+  localStorage.removeItem("google_id");
+  localStorage.removeItem("patient_id");
   localStorage.removeItem("doctor_profile"); // Legacy data
   
-  // Clear any other user-specific cached data
-  const keysToRemove = [];
+  // Clear ALL namespaced and user-specific cached data
+  const keysToRemove: string[] = [];
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
-    if (key && (key.startsWith("user_") || key.startsWith("doctor_") || key.startsWith("patient_"))) {
+    if (key && (
+      key.startsWith("user_") || 
+      key.startsWith("doctor_") || 
+      key.startsWith("patient_") ||
+      key.startsWith("health_records") ||
+      key.startsWith("prescribed_medicines") ||
+      key.startsWith("prescribed_tests") ||
+      key.includes(":") // Clear all namespaced keys like "health_records:123"
+    )) {
       keysToRemove.push(key);
     }
   }

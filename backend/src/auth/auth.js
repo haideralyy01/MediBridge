@@ -39,20 +39,75 @@ export const googleAuthMiddleware = async (req, res, next) => {
       });
     }
 
-    // Development mode: Use mock authentication ONLY if credentials not set OR code is "dev"
-    const isDevMode = process.env.NODE_ENV === "development";
-    const hasRealCredentials = process.env.GOOGLE_CLIENT_ID && 
-                               process.env.GOOGLE_CLIENT_ID !== "your-client-id-here";
-    const isDevCode = code === "dev" || code === "test";
+    // Check if we have valid Google credentials
+    const hasValidCredentials = process.env.GOOGLE_CLIENT_ID && 
+                                process.env.GOOGLE_CLIENT_SECRET &&
+                                process.env.GOOGLE_CLIENT_ID !== "your-client-id-here";
 
-    // If dev mode with no real credentials, or explicit dev code, use mock auth
-    if (isDevMode && (!hasRealCredentials || isDevCode)) {
-      // Use a CONSISTENT dev user (not random) to avoid duplicate accounts
+    // Try real Google OAuth first
+    if (hasValidCredentials) {
+      try {
+        const { tokens } = await googleClient.getToken({
+          code,
+          redirect_uri: redirectUri || process.env.GOOGLE_REDIRECT_URI,
+        });
+
+        console.log("✅ Authorization code exchanged successfully");
+
+        // Verify the ID token
+        const ticket = await googleClient.verifyIdToken({
+          idToken: tokens.id_token,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+
+        const payload = ticket.getPayload();
+
+        if (!payload) {
+          return res.status(401).json({
+            success: false,
+            message: "Invalid Google token",
+          });
+        }
+
+        // Extract user information from Google token
+        const googleUserData = {
+          googleId: payload.sub,
+          email: payload.email,
+          name: payload.name,
+          profilePicture: payload.picture,
+          emailVerified: payload.email_verified,
+        };
+
+        console.log(`✅ Google user authenticated: ${googleUserData.email}`);
+
+        // Check if email is verified
+        if (!googleUserData.emailVerified) {
+          return res.status(401).json({
+            success: false,
+            message: "Email not verified with Google",
+          });
+        }
+
+        // Store Google user data in request for next middleware
+        req.googleUser = googleUserData;
+        return next();
+      } catch (googleError) {
+        console.error("❌ Google OAuth Error:", googleError.message);
+        // Fall through to dev fallback if in development
+        if (process.env.NODE_ENV !== "development") {
+          throw googleError;
+        }
+        console.warn("⚠️ Falling back to dev mode due to Google OAuth error");
+      }
+    }
+
+    // Development fallback - only used when Google OAuth fails or no credentials
+    if (process.env.NODE_ENV === "development") {
       const fixedEmail = process.env.DEV_FIXED_EMAIL || "dev@medibridge.local";
       const fixedName = process.env.DEV_FIXED_NAME || "Development User";
       const googleId = `dev-${fixedEmail.replace(/[^a-z0-9]/gi, '')}`;
 
-      console.log(`⚠️  Using mock authentication for dev user: ${fixedEmail}`);
+      console.log(`⚠️ DEV MODE: Using mock user: ${fixedEmail}`);
 
       req.googleUser = {
         googleId,
@@ -64,84 +119,17 @@ export const googleAuthMiddleware = async (req, res, next) => {
       return next();
     }
 
-    // Production or dev with real credentials: Exchange authorization code for real tokens
-    try {
-      const { tokens } = await googleClient.getToken({
-        code,
-        redirect_uri: redirectUri || process.env.GOOGLE_REDIRECT_URI,
-      });
-
-      console.log("✅ Authorization code exchanged successfully");
-
-      // Verify the ID token
-      const ticket = await googleClient.verifyIdToken({
-        idToken: tokens.id_token,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-
-      const payload = ticket.getPayload();
-
-      if (!payload) {
-        return res.status(401).json({
-          success: false,
-          message: "Invalid Google token",
-        });
-      }
-
-      // Extract user information from Google token
-      const googleUserData = {
-        googleId: payload.sub,
-        email: payload.email,
-        name: payload.name,
-        profilePicture: payload.picture,
-        emailVerified: payload.email_verified,
-      };
-
-      console.log(`✅ Google user authenticated: ${googleUserData.email}`);
-
-      // Check if email is verified
-      if (!googleUserData.emailVerified) {
-        return res.status(401).json({
-          success: false,
-          message: "Email not verified with Google",
-        });
-      }
-
-      // Store Google user data in request for next middleware
-      req.googleUser = googleUserData;
-      next();
-    } catch (googleError) {
-      console.error("❌ Google OAuth Error:", googleError.message);
-      
-      // In development, fallback to mock auth with CONSISTENT user
-      if (isDevMode) {
-        const fixedEmail = process.env.DEV_FIXED_EMAIL || "dev@medibridge.local";
-        const fixedName = process.env.DEV_FIXED_NAME || "Development User";
-        const googleId = `dev-${fixedEmail.replace(/[^a-z0-9]/gi, '')}`;
-
-        console.warn(`⚠️  Google OAuth failed, using consistent dev user: ${fixedEmail}`);
-
-        req.googleUser = {
-          googleId,
-          email: fixedEmail,
-          name: fixedName,
-          profilePicture: "https://via.placeholder.com/150",
-          emailVerified: true,
-        };
-        return next();
-      }
-      // In production, throw the error
-      throw googleError;
-    }
+    // Production with no valid credentials
+    return res.status(401).json({
+      success: false,
+      message: "Google OAuth not configured",
+    });
   } catch (error) {
     console.error("❌ Google Auth Error:", error.message || error);
     return res.status(401).json({
       success: false,
-      message:
-        process.env.NODE_ENV === "development"
-          ? `Failed to authenticate with Google: ${error.message || error}`
-          : "Failed to authenticate with Google",
-      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+      message: `Failed to authenticate with Google: ${error.message || error}`,
+      error: error.message,
     });
   }
 };
@@ -158,16 +146,22 @@ export const loginOrRegisterUser = async (req, res) => {
       });
     }
 
+
     // Normalize email for consistent matching
     const normalizedEmail = (googleUser.email || "").toLowerCase();
     if (normalizedEmail) googleUser.email = normalizedEmail;
 
+    // Determine requested role (from req.user.role, req.body.role, or default 'patient')
+    let requestedRole = req.user?.role || req.body?.role || 'patient';
+    if (typeof requestedRole === 'string') requestedRole = requestedRole.toLowerCase();
+    if (!['doctor', 'patient'].includes(requestedRole)) requestedRole = 'patient';
+
     // Check if user exists by Google ID
     let user = await db.findUserByGoogleId(googleUser.googleId);
 
+    // If not found by Google ID, try by email
     if (!user) {
       // Link by email
-      // In development, default to true unless explicitly set to "false"
       const linkByEmailEnv = (process.env.AUTH_LINK_BY_EMAIL || "").toLowerCase();
       const linkByEmail =
         process.env.NODE_ENV === "development"
@@ -176,6 +170,13 @@ export const loginOrRegisterUser = async (req, res) => {
       if (linkByEmail) {
         const existingByEmail = await db.findUserByEmail(googleUser.email);
         if (existingByEmail) {
+          // Allow login with same email, update role if needed
+          if (existingByEmail.role !== requestedRole) {
+            await db.query(
+              "UPDATE users SET role = $1 WHERE id = $2",
+              [requestedRole, existingByEmail.id]
+            );
+          }
           await db.query(
             "UPDATE users SET google_id = $1, email = $2, profile_picture = $3, last_login = CURRENT_TIMESTAMP WHERE id = $4",
             [googleUser.googleId, normalizedEmail || existingByEmail.email, googleUser.profilePicture, existingByEmail.id]
@@ -185,15 +186,24 @@ export const loginOrRegisterUser = async (req, res) => {
       }
 
       if (!user) {
-        // Create new user
+        // Create new user with requested role
         user = await db.createUser({
           googleId: googleUser.googleId,
           email: googleUser.email,
           name: googleUser.name,
           profilePicture: googleUser.profilePicture,
+          role: requestedRole,
         });
       }
     } else {
+      // If user exists, update role if needed
+      if (user.role !== requestedRole) {
+        await db.query(
+          "UPDATE users SET role = $1 WHERE id = $2",
+          [requestedRole, user.id]
+        );
+        user.role = requestedRole;
+      }
       // Update last login for existing user
       user = await db.updateUserLogin(user.id);
     }
@@ -214,8 +224,10 @@ export const loginOrRegisterUser = async (req, res) => {
       message: "Authentication successful",
       user: {
         id: user.id,
+        googleId: user.google_id,
         email: user.email,
         name: user.name,
+        role: user.role || 'patient',
         profilePicture: user.profile_picture,
         createdAt: user.created_at,
         lastLogin: user.last_login,
@@ -328,8 +340,10 @@ export const getCurrentUser = async (req, res) => {
       success: true,
       user: {
         id: user.id,
+        googleId: user.google_id,
         email: user.email,
         name: user.name,
+        role: user.role || 'patient',
         profilePicture: user.profile_picture,
         createdAt: user.created_at,
         lastLogin: user.last_login,

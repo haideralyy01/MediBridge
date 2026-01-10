@@ -555,10 +555,10 @@ export const db = {
   },
 
   createUser: async (userData) => {
-    const { googleId, email, name, profilePicture } = userData;
+    const { googleId, email, name, profilePicture, role } = userData;
     const query = `
-      INSERT INTO users (google_id, email, name, profile_picture, last_login)
-      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+      INSERT INTO users (google_id, email, name, profile_picture, role, last_login)
+      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
       RETURNING *
     `;
     const result = await pool.query(query, [
@@ -566,6 +566,7 @@ export const db = {
       email?.toLowerCase(),
       name,
       profilePicture,
+      role || 'patient',
     ]);
     return result.rows[0];
   },
@@ -581,6 +582,7 @@ export const db = {
   createHealthRecord: async (recordData) => {
     const {
       userId,
+      patientId,
       recordType,
       title,
       description,
@@ -599,15 +601,16 @@ export const db = {
 
     const query = `
       INSERT INTO health_records (
-        user_id, record_type, title, description, icd11_code, icd11_title,
+        user_id, patient_id, record_type, title, description, icd11_code, icd11_title,
         diagnosis, symptoms, medications, test_results, attachments,
         doctor_name, hospital_name, visit_date, severity
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       RETURNING *
     `;
 
     const result = await pool.query(query, [
       userId,
+      patientId,
       recordType,
       title,
       description,
@@ -637,12 +640,32 @@ export const db = {
     return result.rows;
   },
 
+  getHealthRecordsByPatientId: async (patientId, limit = 50, offset = 0) => {
+    const query = `
+      SELECT * FROM health_records 
+      WHERE patient_id = $1 
+      ORDER BY created_at DESC 
+      LIMIT $2 OFFSET $3
+    `;
+    const result = await pool.query(query, [patientId, limit, offset]);
+    return result.rows;
+  },
+
   getHealthRecordById: async (recordId, userId) => {
     const query = `
       SELECT * FROM health_records 
       WHERE id = $1 AND user_id = $2
     `;
     const result = await pool.query(query, [recordId, userId]);
+    return result.rows[0];
+  },
+
+  getHealthRecordByPatientId: async (recordId, patientId) => {
+    const query = `
+      SELECT * FROM health_records 
+      WHERE id = $1 AND patient_id = $2
+    `;
+    const result = await pool.query(query, [recordId, patientId]);
     return result.rows[0];
   },
 
@@ -668,6 +691,35 @@ export const db = {
       UPDATE health_records 
       SET ${fields.join(", ")} 
       WHERE id = $${paramCount} AND user_id = $${paramCount + 1}
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
+
+  updateHealthRecordByPatientId: async (recordId, patientId, updateData) => {
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateData[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) return null;
+
+    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(recordId, patientId);
+
+    const query = `
+      UPDATE health_records 
+      SET ${fields.join(", ")} 
+      WHERE id = $${paramCount} AND patient_id = $${paramCount + 1}
       RETURNING *
     `;
 
@@ -713,6 +765,7 @@ export const db = {
   createMedication: async (medicationData) => {
     const {
       userId,
+      patientId,
       medicationName,
       dosage,
       frequency,
@@ -722,12 +775,13 @@ export const db = {
       notes,
     } = medicationData;
     const query = `
-      INSERT INTO medicines (user_id, medicine_name, dosage, frequency, prescribed_by, start_date, end_date, notes)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO medicines (user_id, patient_id, medicine_name, dosage, frequency, prescribed_by, start_date, end_date, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
     `;
     const result = await pool.query(query, [
       userId,
+      patientId,
       medicationName,
       dosage,
       frequency,
@@ -743,6 +797,12 @@ export const db = {
     const query =
       "SELECT * FROM medicines WHERE user_id = $1 ORDER BY created_at DESC";
     const result = await pool.query(query, [userId]);
+    return result.rows;
+  },
+
+  getMedicationsByPatientId: async (patientId) => {
+    const query = "SELECT * FROM medicines WHERE patient_id = $1 ORDER BY created_at DESC";
+    const result = await pool.query(query, [patientId]);
     return result.rows;
   },
 
@@ -768,6 +828,35 @@ export const db = {
       UPDATE medicines 
       SET ${fields.join(", ")} 
       WHERE id = $${paramCount} AND user_id = $${paramCount + 1}
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
+
+  updateMedicationByPatientId: async (medicationId, patientId, updateData) => {
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateData[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) return null;
+
+    fields.push(`created_at = created_at`);
+    values.push(medicationId, patientId);
+
+    const query = `
+      UPDATE medicines 
+      SET ${fields.join(", ")} 
+      WHERE id = $${paramCount} AND patient_id = $${paramCount + 1}
       RETURNING *
     `;
 
@@ -827,14 +916,15 @@ export const db = {
 
   // Test Records queries
   createTestRecord: async (testData) => {
-    const { userId, testName, testType, frequency, reason, instructions, status } = testData;
+    const { userId, patientId, testName, testType, frequency, reason, instructions, status } = testData;
     const query = `
-      INSERT INTO test_records (user_id, test_name, test_type, frequency, reason, instructions, status)
-      VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, 'scheduled'))
+      INSERT INTO test_records (user_id, patient_id, test_name, test_type, frequency, reason, instructions, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8, 'scheduled'))
       RETURNING *
     `;
     const result = await pool.query(query, [
       userId,
+      patientId,
       testName,
       testType,
       frequency,
@@ -848,6 +938,12 @@ export const db = {
   getTestRecordsByUserId: async (userId) => {
     const query = "SELECT * FROM test_records WHERE user_id = $1 ORDER BY created_at DESC";
     const result = await pool.query(query, [userId]);
+    return result.rows;
+  },
+
+  getTestRecordsByPatientId: async (patientId) => {
+    const query = "SELECT * FROM test_records WHERE patient_id = $1 ORDER BY created_at DESC";
+    const result = await pool.query(query, [patientId]);
     return result.rows;
   },
 
@@ -873,6 +969,35 @@ export const db = {
       UPDATE test_records 
       SET ${fields.join(", ")} 
       WHERE id = $${paramCount} AND user_id = $${paramCount + 1}
+      RETURNING *
+    `;
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
+
+  updateTestRecordByPatientId: async (testId, patientId, updateData) => {
+    const fields = [];
+    const values = [];
+    let paramCount = 1;
+
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] !== undefined) {
+        fields.push(`${key} = $${paramCount}`);
+        values.push(updateData[key]);
+        paramCount++;
+      }
+    });
+
+    if (fields.length === 0) return null;
+
+    fields.push(`created_at = created_at`);
+    values.push(testId, patientId);
+
+    const query = `
+      UPDATE test_records 
+      SET ${fields.join(", ")} 
+      WHERE id = $${paramCount} AND patient_id = $${paramCount + 1}
       RETURNING *
     `;
 

@@ -7,7 +7,12 @@ const router = express.Router();
 // List medications for authenticated user
 router.get("/", authenticateToken, async (req, res) => {
   try {
-    const meds = await db.getMedicationsByUserId(req.user.id);
+    let meds;
+    if (req.query.patientId) {
+      meds = await db.getMedicationsByPatientId(req.query.patientId);
+    } else {
+      meds = await db.getMedicationsByUserId(req.user.id);
+    }
     res.json({ success: true, data: meds });
   } catch (error) {
     console.error("❌ Get Medications Error:", error);
@@ -32,8 +37,10 @@ router.post("/", authenticateToken, async (req, res) => {
       return res.status(400).json({ success: false, message: "Medication name is required" });
     }
 
+    const patientId = req.body.patientId || req.body.patient_id || null;
     const med = await db.createMedication({
       userId: req.user.id,
+      patientId,
       medicationName,
       dosage,
       frequency,
